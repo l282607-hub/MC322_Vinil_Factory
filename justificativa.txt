@@ -5,32 +5,42 @@
 
 1. JUSTIFICATIVA DA ESCOLHA DO TEMA
 ----------------------------------
-A escolha da fábrica de discos de vinil "GroovePress Vinyl Works" nasce do nosso 
-interesse pessoal pela música e pela valorização das mídias físicas no mercado 
-fonográfico. Como estamos cursando a disciplina para expandir o conhecimento em 
-Programação Orientada a Objetos (POO) e complementar o currículo, optar por um 
-processo industrial físico, tátil e com etapas bem delimitadas torna o aprendizado 
-de classes, métodos e atributos muito mais didático e intuitivo.
+A escolha da fábrica de discos de vinil "GroovePress Vinyl Works" como tema deste 
+projeto nasce de um interesse genuíno pela música e por tudo o que ela carrega 
+quando materializada em algo físico. Em uma era dominada pelo digital e pelo 
+efêmero, o vinil resiste — e cresce — justamente por representar um ritual: o 
+disco que se escolhe, se segura, se cuida. Ver esse processo artesanal e 
+industrial ao mesmo tempo, com etapas físicas tão bem definidas (prensagem, 
+inspeção, acabamento), nos pareceu um terreno fértil para representar em código 
+algo que normalmente só existe no mundo tátil. Mais do que um exercício teórico, 
+enxergamos aqui uma aplicação real: entender como modelar cadeias produtivas 
+físicas em sistemas orientados a objetos é uma habilidade que se estende muito 
+além da sala de aula, com potencial de abrir portas em áreas como automação 
+industrial, gestão de manufatura e sistemas de controle de produção — setores em 
+plena expansão e cada vez mais dependentes de software bem estruturado.
 
 Em nossa planta industrial, a matéria-prima principal é o Polímero de PVC Reciclado. 
-Esse insumo é transportado até a máquina de prensagem hidráulica e, após ser 
-transformado em disco de vinil, segue pela esteira até a estação de inspeção de 
-qualidade visual para ser aprovado antes do despacho.
+Esse insumo é transportado até a prensa hidráulica e, após ser transformado em disco 
+de vinil, segue pela esteira até a estação de inspeção de qualidade visual, onde é 
+aprovado antes do despacho.
 
 2. VISÃO DE EXPANSÃO FUTURA
 ---------------------------
-Para as próximas tarefas da disciplina, projetamos a expansão do sistema utilizando 
-conceitos avançados de orientação a objetos:
+Para as próximas etapas da disciplina, projetamos a expansão do sistema utilizando 
+conceitos mais avançados de orientação a objetos:
 
-- Herança e Polimorfismo (Tarefa 2): Criação de diferentes tipos de prensas 
-  (prensas manuais vintage e prensas automáticas de alta velocidade) e diferentes 
-  módulos de inspeção (inspeção visual de superfícies e teste de áudio/ruído).
-- Etapas Complementares: Implementação do processo de secagem, aplicação do 
-  rótulo central de papel (label) e embalagem protetora em capas de papelão.
-- Reciclagem e Tratamento de Exceções: Sistema para retrabalhar produtos 
-  reprovados na inspeção, triturando o PVC defeituoso para reincorporá-lo ao 
-  estoque de matéria-prima.
-- Controle Multiestoque: Adição de insumos secundários, como corantes para vinil 
+- Herança e Polimorfismo (Tarefa 2): criação de diferentes tipos de prensas 
+  (prensas manuais vintage e prensas automáticas de alta velocidade) e de diferentes 
+  módulos de inspeção (inspeção visual de superfície e teste de áudio/ruído).
+
+- Etapas Complementares: implementação do processo de secagem, aplicação do 
+  rótulo central de papel (label) e embalagem em capa protetora de papelão.
+
+- Reciclagem e Tratamento de Exceções: sistema para retrabalhar produtos reprovados 
+  na inspeção, triturando o PVC defeituoso e reincorporando-o ao estoque de 
+  matéria-prima.
+
+- Controle Multiestoque: adição de insumos secundários, como corantes para vinil 
   marmorizado/colorido e capas protetoras antiestáticas.
 
 ===============================================================================
