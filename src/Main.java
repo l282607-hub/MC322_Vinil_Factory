@@ -1,261 +1,130 @@
 import java.util.Scanner;
 
+/**
+ * GroovePress Vinyl Works - Tarefa 2 (MC322).
+ * Ponto de entrada: monta a planta, aloca o budget e roda o menu.
+ */
 public class Main {
+    private static final double BUDGET_INICIAL = 1000.00;
+    private static final String[] TIPOS = {
+            LpAudiofiloDeluxe.TIPO,
+            LpStandard.TIPO,
+            CompactoSete.TIPO
+    };
+
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
-        MateriaPrima pvc = new MateriaPrima(
-                1,
-                "PVC Reciclado",
-                100.0,
-                "kg",
-                3.0);
+        MateriaPrima pvc = new MateriaPrima(1, "PVC Reciclado", 20.0, "kg", 3.00);
+        GerenciadorProducao fabrica = new GerenciadorProducao(pvc, BUDGET_INICIAL);
 
-        Produto compacto = new Produto(
-                1,
-                "Compacto 7 Polegadas",
-                "aguardando",
-                3.0);
+        // Linha: prensa -> embaladora -> inspecao (ordem importa)
+        fabrica.adicionarMaquina(new PrensaHidraulica("Hydraulic Vinyl Press", 50, 0.20, 4.00));
+        fabrica.adicionarMaquina(new EmbaladoraCapas("Sleeve-O-Matic", 80, 0.15, 1.50));
+        fabrica.adicionarMaquina(new EstacaoInspecao("Golden Ear Station", 60, 0.05, 2.50));
 
-        Produto lpStandard = new Produto(
-                2,
-                "LP Standard 12 Polegadas",
-                "aguardando",
-                8.0);
+        // Demandas iniciais das gravadoras (o usuario pode alterar pelo menu)
+        fabrica.registrarDemanda(LpAudiofiloDeluxe.TIPO, 2);
+        fabrica.registrarDemanda(LpStandard.TIPO, 5);
+        fabrica.registrarDemanda(CompactoSete.TIPO, 10);
 
-        Produto lpDeluxe = new Produto(
-                3,
-                "LP Duplo Audiofilo Deluxe",
-                "aguardando",
-                15.0);
-
-        Maquina prensa = new Maquina(
-                "Hydraulic Vinyl Press",
-                false,
-                20.0);
-
-        Esteira esteira = new Esteira(false, 20.0);
-        EstacaoInspecao inspecao = new EstacaoInspecao(false);
-
-        exibirIntroducao(pvc, compacto, lpStandard, lpDeluxe);
+        exibirIntroducao(fabrica);
 
         int opcao;
         do {
-            exibirMenu();
+            exibirMenu(fabrica);
             opcao = lerInteiro(scanner);
 
-            if (opcao == 1) {
-                Produto produtoEscolhido = escolherProduto(
-                        scanner,
-                        compacto,
-                        lpStandard,
-                        lpDeluxe);
-
-                if (produtoEscolhido != null) {
-                    System.out.print("Informe a demanda de PVC em kg: ");
-                    double demanda = lerDouble(scanner);
-                    produtoEscolhido.definirDemandaMateriaPrima(demanda);
-
-                    produzir(
-                            produtoEscolhido,
-                            pvc,
-                            prensa,
-                            esteira,
-                            inspecao,
-                            demanda);
-                }
-            } else if (opcao == 2) {
-                exibirEstoque(pvc);
-            } else if (opcao == 3) {
-                System.out.print("Quantidade de PVC que sera adicionada em kg: ");
-                double quantidade = lerDouble(scanner);
-                pvc.adicionarEstoque(quantidade);
-                System.out.println("[OK] Estoque atualizado.");
-                exibirEstoque(pvc);
-            } else if (opcao == 4) {
-                System.out.println("Encerrando a GroovePress Vinyl Works.");
+            if (opcao >= 1 && opcao <= 3) {
+                String tipo = TIPOS[opcao - 1];
+                System.out.print("Nova quantidade demandada de " + tipo + ": ");
+                fabrica.atualizarDemanda(tipo, lerInteiroNaoNegativo(scanner));
+            } else if (opcao >= 4 && opcao <= 6) {
+                fabrica.fabricarDemanda(TIPOS[opcao - 4]);
+            } else if (opcao == 7) {
+                fabrica.exibirArmazem();
+            } else if (opcao == 8) {
+                fabrica.exibirEstoque();
+                fabrica.exibirDemandas();
+                fabrica.exibirMaquinas();
+            } else if (opcao == 9) {
+                System.out.print("Quantidade de PVC a comprar (kg): ");
+                fabrica.comprarMateriaPrima(lerDoublePositivo(scanner));
+            } else if (opcao == 0) {
+                System.out.println("\nEncerrando a GroovePress Vinyl Works. Ate a proxima prensagem!");
             } else {
-                System.out.println("Opcao invalida.");
+                System.out.println("[ERRO] Opcao invalida.");
             }
-        } while (opcao != 4);
+        } while (opcao != 0);
 
         scanner.close();
     }
 
-    public static void exibirIntroducao(
-            MateriaPrima materiaPrima,
-            Produto compacto,
-            Produto lpStandard,
-            Produto lpDeluxe) {
-
-
-        System.out.println("========================================");
-        System.out.println("GROOVEPRESS VINYL WORKS");
-        System.out.println("Fabrica artesanal de discos de vinil");
-        System.out.println("========================================");
-
-        System.out.println("Materia-prima principal: " + materiaPrima.getNome());
-        System.out.println("Estoque inicial: " + materiaPrima.getQuantidade()
-                + " " + materiaPrima.getUnidade());
-
-
-        System.out.println("Produtos disponiveis:");
-        System.out.println("1 - " + compacto.getNome()
-                + " (demanda inicial: " + compacto.getDemandaMateriaPrima() + " kg)");
-        System.out.println("2 - " + lpStandard.getNome()
-                + " (demanda inicial: " + lpStandard.getDemandaMateriaPrima() + " kg)");
-        System.out.println("3 - " + lpDeluxe.getNome()
-                + " (demanda inicial: " + lpDeluxe.getDemandaMateriaPrima() + " kg)");
-
-
-        System.out.println("Desenvolvido por:\nJeorde Antonio - RA 295164\nLeo Bertoli - RA 282607");
+    private static void exibirIntroducao(GerenciadorProducao fabrica) {
+        System.out.println("==============================================");
+        System.out.println("        GROOVEPRESS VINYL WORKS  -  v2");
+        System.out.println("   Fabrica de discos de vinil - linha completa");
+        System.out.println("==============================================");
+        System.out.println("Novidades desta versao:");
+        System.out.println("  * 3 formatos de disco com qualidades distintas");
+        System.out.println("  * Linha prensa -> embaladora -> inspecao");
+        System.out.println("  * Falhas aleatorias e reciclagem de rejeitados");
+        System.out.println("  * Demandas das gravadoras, budget e armazem");
+        System.out.println();
+        System.out.println("Formatos: " + LpAudiofiloDeluxe.TIPO + " (qualidade 0.9), "
+                + LpStandard.TIPO + " (0.7), " + CompactoSete.TIPO + " (0.5)");
+        System.out.println("Atencao: quanto maior a qualidade, mais rigorosa a inspecao!");
+        System.out.println();
+        fabrica.exibirEstoque();
+        fabrica.exibirMaquinas();
+        fabrica.exibirDemandas();
+        System.out.println("\nDesenvolvido por:");
+        System.out.println("  Jeorde Antonio - RA 295164");
+        System.out.println("  Leo Bertoli    - RA 282607");
     }
 
-    public static void exibirMenu() {
-
-        System.out.println("\n========================================");
-        System.out.println("MENU PRINCIPAL");
-        System.out.println("========================================");
-
-        System.out.println("1 - Iniciar producao");
-        System.out.println("2 - Consultar estoque");
-        System.out.println("3 - Adicionar PVC ao estoque");
-        System.out.println("4 - Sair");
-        System.out.print("Escolha: ");
+    private static void exibirMenu(GerenciadorProducao fabrica) {
+        System.out.println("\n==============================================");
+        System.out.println("          GROOVEPRESS VINYL WORKS");
+        System.out.println("==============================================");
+        fabrica.exibirBudget();
+        System.out.println("\n ATUALIZAR DEMANDAS");
+        System.out.println("  1 - Atualizar demanda de " + LpAudiofiloDeluxe.TIPO);
+        System.out.println("  2 - Atualizar demanda de " + LpStandard.TIPO);
+        System.out.println("  3 - Atualizar demanda de " + CompactoSete.TIPO);
+        System.out.println("\n FABRICAR");
+        System.out.println("  4 - Fabricar " + LpAudiofiloDeluxe.TIPO);
+        System.out.println("  5 - Fabricar " + LpStandard.TIPO);
+        System.out.println("  6 - Fabricar " + CompactoSete.TIPO);
+        System.out.println("\n CONSULTAR");
+        System.out.println("  7 - Ver armazem");
+        System.out.println("  8 - Ver estoque, demandas e maquinas");
+        System.out.println("\n COMPRAR MATERIA-PRIMA");
+        System.out.println("  9 - Comprar PVC reciclado");
+        System.out.println("\n  0 - SAIR");
+        System.out.print("\nESCOLHA: ");
     }
 
-    public static Produto escolherProduto(
-            Scanner scanner,
-            Produto compacto,
-            Produto lpStandard,
-            Produto lpDeluxe) {
+    // ---- Leitura validada (apenas entradas numericas) ---------------------
 
-        System.out.println("\nSelecione o produto:");
-        System.out.println("1 - " + compacto.getNome());
-        System.out.println("2 - " + lpStandard.getNome());
-        System.out.println("3 - " + lpDeluxe.getNome());
-        System.out.print("Escolha: ");
-
-        int escolha = lerInteiro(scanner);
-
-        if (escolha == 1) {
-            return compacto;
-        } else if (escolha == 2) {
-            return lpStandard;
-        } else if (escolha == 3) {
-            return lpDeluxe;
-        }
-
-        System.out.println("Produto invalido.");
-        return null;
-    }
-
-    public static void produzir(
-            Produto produto,
-            MateriaPrima pvc,
-            Maquina prensa,
-            Esteira esteira,
-            EstacaoInspecao inspecao,
-            double demanda) {
-
-        System.out.println("\n[OK] Verificando disponibilidade de " + pvc.getNome() + "...");
-
-        if (!pvc.verificarDisponibilidade(demanda)) {
-            System.out.println("[ERRO] Demanda abaixo do minimo ou estoque insuficiente.");
-            return;
-        }
-
-        if (!prensa.verificarCapacidade(demanda)) {
-            System.out.println("[ERRO] A demanda excede a capacidade da maquina.");
-            return;
-        }
-
-        if (!esteira.verificarCapacidade(demanda)) {
-            System.out.println("[ERRO] A demanda excede a capacidade da esteira.");
-            return;
-        }
-
-        esteira.ligar();
-        prensa.ligar();
-        System.out.println("[OK] Esteira ligada.");
-        System.out.println("[OK] Maquina " + prensa.getNome() + " ligada.");
-
-        if (!esteira.adicionarItem(pvc, demanda)) {
-            System.out.println("[ERRO] Nao foi possivel colocar a materia-prima na esteira.");
-            desligarEquipamentos(prensa, esteira, inspecao);
-            return;
-        }
-
-        System.out.println("[OK] Materia-prima colocada na esteira.");
-        esteira.removerItem();
-        System.out.println("[OK] Materia-prima transportada ate a maquina.");
-
-        if (!prensa.processar(pvc, demanda)) {
-            System.out.println("[ERRO] A maquina nao conseguiu processar o produto.");
-            desligarEquipamentos(prensa, esteira, inspecao);
-            return;
-        }
-
-        produto.processar();
-        produto.definirMateriaPrimaUtilizada(pvc);
-        System.out.println("[OK] Produto " + produto.getNome() + " processado.");
-
-        if (!esteira.adicionarItem(produto, demanda)) {
-            System.out.println("[ERRO] Nao foi possivel colocar o produto na esteira.");
-            desligarEquipamentos(prensa, esteira, inspecao);
-            return;
-        }
-
-        esteira.removerItem();
-        System.out.println("[OK] Produto transportado para a inspecao.");
-
-        inspecao.ativar();
-        System.out.println("[OK] Estacao de inspecao ativada.");
-
-        if (!inspecao.inspecionar(produto)) {
-            System.out.println("[ERRO] O produto nao foi inspecionado.");
-            desligarEquipamentos(prensa, esteira, inspecao);
-            return;
-        }
-
-        System.out.println("[OK] Produto aprovado na inspecao.");
-        System.out.println("========================================");
-        System.out.println("PRODUCAO CONCLUIDA COM SUCESSO");
-        System.out.println("========================================");
-        System.out.println("Status do produto: " + produto.getStatus());
-        System.out.println("Materia-prima utilizada: "
-                + produto.getMateriaPrimaUtilizada().getId() + " - "
-                + produto.getMateriaPrimaUtilizada().getNome());
-        exibirEstoque(pvc);
-
-        desligarEquipamentos(prensa, esteira, inspecao);
-    }
-
-    public static void exibirEstoque(MateriaPrima materiaPrima) {
-        System.out.println("Estoque de " + materiaPrima.getNome() + ": "
-                + materiaPrima.getQuantidade() + " " + materiaPrima.getUnidade());
-    }
-
-    public static void desligarEquipamentos(
-            Maquina maquina,
-            Esteira esteira,
-            EstacaoInspecao inspecao) {
-
-        maquina.desligar();
-        esteira.desligar();
-        inspecao.desativar();
-    }
-
-    public static int lerInteiro(Scanner scanner) {
+    private static int lerInteiro(Scanner scanner) {
         while (!scanner.hasNextInt()) {
             System.out.print("Entrada invalida. Digite um numero inteiro: ");
             scanner.next();
         }
-
         return scanner.nextInt();
     }
 
-    public static double lerDouble(Scanner scanner) {
+    private static int lerInteiroNaoNegativo(Scanner scanner) {
+        int valor = lerInteiro(scanner);
+        while (valor < 0) {
+            System.out.print("Digite um numero inteiro maior ou igual a zero: ");
+            valor = lerInteiro(scanner);
+        }
+        return valor;
+    }
+
+    private static double lerDoublePositivo(Scanner scanner) {
         while (true) {
             if (scanner.hasNextDouble()) {
                 double valor = scanner.nextDouble();
@@ -265,7 +134,6 @@ public class Main {
             } else {
                 scanner.next();
             }
-
             System.out.print("Entrada invalida. Digite um numero maior que zero: ");
         }
     }

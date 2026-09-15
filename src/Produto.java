@@ -1,46 +1,49 @@
-public class Produto {
+/**
+ * Classe abstrata que representa um disco de vinil generico produzido pela
+ * GroovePress Vinyl Works. Cada formato de disco (compacto, LP standard,
+ * LP deluxe) e uma subclasse com qualidade e consumo de PVC proprios.
+ */
+public abstract class Produto {
+    private static int totalProdutosFabricados = 0;
+
     private int id;
     private String nome;
     private String status;
-    private double quantidadeMateriaPrimaNecessaria;
-    private MateriaPrima materiaPrimaUtilizada;
+    private double quantidadeMateriaPrimaPorUnidade;
+    private double qualidade;
+    private double probabilidadeFalhaAcumulada;
 
-    public Produto(
-            int id,
-            String nome,
-            String status,
-            double quantidadeMateriaPrimaNecessaria) {
-
-        this.id = id;
+    protected Produto(String nome, double quantidadeMateriaPrimaPorUnidade, double qualidade) {
+        totalProdutosFabricados++;
+        this.id = totalProdutosFabricados;
         this.nome = nome;
-        this.status = status;
-        this.quantidadeMateriaPrimaNecessaria = quantidadeMateriaPrimaNecessaria;
+        this.status = "aguardando";
+        this.quantidadeMateriaPrimaPorUnidade = quantidadeMateriaPrimaPorUnidade;
+        this.qualidade = qualidade;
+        this.probabilidadeFalhaAcumulada = 0.0;
     }
 
-    public void processar() {
-        status = "processado";
-    }
+    // ---- Metodos abstratos -------------------------------------------------
 
-    public void aprovar() {
-        status = "aprovado";
-    }
+    /** Define o processamento especifico de cada formato de disco. */
+    public abstract void processar();
 
-    public void definirDemandaMateriaPrima(double demanda) {
-        if (demanda > 0) {
-            quantidadeMateriaPrimaNecessaria = demanda;
+    /** Tempo estimado de producao de uma unidade, em minutos. */
+    public abstract double calcularTempoProducao();
+
+    /** Nome do tipo (usado nas demandas e no armazem). */
+    public abstract String getTipo();
+
+    // ---- Metodos concretos -------------------------------------------------
+
+    public void aumentarProbabilidadeFalha(double incremento) {
+        if (incremento > 0) {
+            probabilidadeFalhaAcumulada = Math.min(1.0, probabilidadeFalhaAcumulada + incremento);
         }
     }
 
-    public double getDemandaMateriaPrima() {
-        return quantidadeMateriaPrimaNecessaria;
-    }
-
-    public void definirMateriaPrimaUtilizada(MateriaPrima materiaPrima) {
-        materiaPrimaUtilizada = materiaPrima;
-    }
-
-    public MateriaPrima getMateriaPrimaUtilizada() {
-        return materiaPrimaUtilizada;
+    public static int getTotalProdutosFabricados() {
+        return totalProdutosFabricados;
     }
 
     public int getId() {
@@ -53,5 +56,27 @@ public class Produto {
 
     public String getStatus() {
         return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
+    }
+
+    public double getQuantidadeMateriaPrimaPorUnidade() {
+        return quantidadeMateriaPrimaPorUnidade;
+    }
+
+    public double getQualidade() {
+        return qualidade;
+    }
+
+    public double getProbabilidadeFalhaAcumulada() {
+        return probabilidadeFalhaAcumulada;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("#%03d %-28s | qualidade %.1f | status: %s",
+                id, nome, qualidade, status);
     }
 }

@@ -1,38 +1,38 @@
+/**
+ * Insumo da fabrica. Na GroovePress, o PVC reciclado em kg.
+ */
 public class MateriaPrima {
     private int id;
     private String nome;
-    private double quantidadeDisponivel;
+    private double quantidade;
     private String unidade;
-    private double quantidadeMinima;
+    private double custoPorUnidade;
 
-    public MateriaPrima(
-            int id,
-            String nome,
-            double quantidadeDisponivel,
-            String unidade,
-            double quantidadeMinima) {
-
+    public MateriaPrima(int id, String nome, double quantidade, String unidade, double custoPorUnidade) {
         this.id = id;
         this.nome = nome;
-        this.quantidadeDisponivel = quantidadeDisponivel;
+        this.quantidade = quantidade;
         this.unidade = unidade;
-        this.quantidadeMinima = quantidadeMinima;
+        this.custoPorUnidade = custoPorUnidade;
     }
 
-    public void consumir(double consumo) {
-        if (verificarDisponibilidade(consumo)) {
-            quantidadeDisponivel -= consumo;
+    /** Retira do estoque; retorna false se nao havia quantidade suficiente. */
+    public boolean consumir(double consumo) {
+        if (!verificarDisponibilidade(consumo)) {
+            return false;
         }
+        quantidade -= consumo;
+        return true;
     }
 
     public void adicionarEstoque(double quantidadeRecebida) {
         if (quantidadeRecebida > 0) {
-            quantidadeDisponivel += quantidadeRecebida;
+            quantidade += quantidadeRecebida;
         }
     }
 
     public boolean verificarDisponibilidade(double demanda) {
-        return demanda >= quantidadeMinima && quantidadeDisponivel >= demanda;
+        return demanda > 0 && quantidade >= demanda;
     }
 
     public int getId() {
@@ -44,10 +44,19 @@ public class MateriaPrima {
     }
 
     public double getQuantidade() {
-        return quantidadeDisponivel;
+        return quantidade;
     }
 
     public String getUnidade() {
         return unidade;
+    }
+
+    public double getCustoPorUnidade() {
+        return custoPorUnidade;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s: %.2f %s (R$%.2f/%s)", nome, quantidade, unidade, custoPorUnidade, unidade);
     }
 }

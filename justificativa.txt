@@ -3,44 +3,88 @@
                             GroovePress Vinyl Works
 ===============================================================================
 
+Integrantes: Jeorde Antonio (RA 295164) e Leo Bertoli (RA 282607)
+
 1. JUSTIFICATIVA DA ESCOLHA DO TEMA
 ----------------------------------
-A escolha da fábrica de discos de vinil "GroovePress Vinyl Works" como tema deste 
-projeto nasce de um interesse genuíno pela música e por tudo o que ela carrega 
-quando materializada em algo físico. Em uma era dominada pelo digital e pelo 
-efêmero, o vinil resiste — e cresce — justamente por representar um ritual: o 
-disco que se escolhe, se segura, se cuida. Ver esse processo artesanal e 
-industrial ao mesmo tempo, com etapas físicas tão bem definidas (prensagem, 
-inspeção, acabamento), nos pareceu um terreno fértil para representar em código 
-algo que normalmente só existe no mundo tátil. Mais do que um exercício teórico, 
-enxergamos aqui uma aplicação real: entender como modelar cadeias produtivas 
-físicas em sistemas orientados a objetos é uma habilidade que se estende muito 
-além da sala de aula, com potencial de abrir portas em áreas como automação 
-industrial, gestão de manufatura e sistemas de controle de produção — setores em 
+A escolha da fábrica de discos de vinil "GroovePress Vinyl Works" como tema deste
+projeto nasce de um interesse genuíno pela música e por tudo o que ela carrega
+quando materializada em algo físico. Em uma era dominada pelo digital e pelo
+efêmero, o vinil resiste — e cresce — justamente por representar um ritual: o
+disco que se escolhe, se segura, se cuida. Ver esse processo artesanal e
+industrial ao mesmo tempo, com etapas físicas tão bem definidas (prensagem,
+inspeção, acabamento), nos pareceu um terreno fértil para representar em código
+algo que normalmente só existe no mundo tátil. Mais do que um exercício teórico,
+enxergamos aqui uma aplicação real: entender como modelar cadeias produtivas
+físicas em sistemas orientados a objetos é uma habilidade que se estende muito
+além da sala de aula, com potencial de abrir portas em áreas como automação
+industrial, gestão de manufatura e sistemas de controle de produção — setores em
 plena expansão e cada vez mais dependentes de software bem estruturado.
 
-Em nossa planta industrial, a matéria-prima principal é o Polímero de PVC Reciclado. 
-Esse insumo é transportado até a prensa hidráulica e, após ser transformado em disco 
-de vinil, segue pela esteira até a estação de inspeção de qualidade visual, onde é 
-aprovado antes do despacho.
+Em nossa planta industrial, a matéria-prima principal é o Polímero de PVC Reciclado.
+Esse insumo é transportado até a prensa hidráulica e, após ser transformado em disco
+de vinil, segue até a estação de inspeção de qualidade, onde é aprovado antes do
+despacho.
 
-2. VISÃO DE EXPANSÃO FUTURA
+2. EVOLUÇÃO NA TAREFA 2
+-----------------------
+Na Tarefa 1 a planta prensava um único disco por vez, sem falhas e sem custo. Na
+Tarefa 2 ela virou uma fábrica de verdade: recebe encomendas das gravadoras, opera
+uma linha com três máquinas, paga por cada operação e lida com defeitos.
+
+2.1 Hierarquia de produtos (classe abstrata Produto)
+    Os três formatos que a GroovePress prensa viraram subclasses, cada uma com
+    qualidade e consumo de PVC próprios:
+      - LpAudiofiloDeluxe  -> qualidade 0.9, 0.40 kg de PVC (LP duplo de 180g)
+      - LpStandard         -> qualidade 0.7, 0.20 kg de PVC (LP 12" de 140g)
+      - CompactoSete       -> qualidade 0.5, 0.10 kg de PVC (single de 7")
+    Cada formato define seu próprio processar() (ciclo de prensagem) e
+    calcularTempoProducao(). O atributo estático totalProdutosFabricados gera os
+    IDs e contabiliza todas as instâncias criadas.
+
+2.2 Hierarquia de máquinas (classe abstrata Maquina)
+      - PrensaHidraulica  (processamento) -> não falha, mas em 20% das prensagens
+        deixa bolha de ar e soma +15% ao risco acumulado do disco;
+      - EmbaladoraCapas   (embalagem)     -> não falha, mas em 15% dos casos risca
+        o disco ao envelopar e soma +10% ao risco acumulado;
+      - EstacaoInspecao   (inspeção)      -> única que pode falhar diretamente
+        (5%): quando falha, a leitura do sensor inverte o resultado da inspeção.
+
+2.3 Qualidade x Inspeção (diretamente proporcional)
+    A chance de rejeição na inspeção = qualidade x 0.25 + risco acumulado. Um LP
+    Deluxe parte de 22,5% de rejeição (critério audiófilo, rigoroso); um Compacto
+    parte de 12,5% (critério flexível). Defeitos das máquinas anteriores somam a
+    esse valor, então quanto mais máquinas o disco atravessa com problema, maior
+    a chance de reprovação.
+
+2.4 Demandas, budget e armazém (GerenciadorProducao)
+    ArrayLists guardam as demandas, as máquinas e o armazém de discos aprovados.
+    O budget é alocado na Main (R$1000) e debitado em duas ocasiões: na compra de
+    PVC do fornecedor (R$3/kg) e no custo de operação de cada máquina por disco.
+    Se estoque ou budget não bastam para a demanda inteira, o gerenciador avisa e
+    fabrica um lote parcial; a demanda só é marcada como atendida quando todos os
+    discos pedidos foram aprovados.
+
+2.5 Toque próprio: reciclagem de rejeitados
+    Como prometido na Tarefa 1, discos reprovados não são descartados: são
+    triturados e 50% do PVC volta ao estoque, exatamente como acontece em prensas
+    de vinil reais. O resumo de cada lote mostra quantos kg foram recuperados.
+
+2.6 Encapsulamento e métodos privados
+    Todos os atributos são privados com getters públicos. A lógica interna do
+    gerenciador (calcularCustoProducao, calcularLoteViavel, passarPelaLinha,
+    reciclar, criarProduto, buscarDemanda) é privada; verificarFalha e sortear são
+    protegidos na Maquina para uso exclusivo das subclasses.
+
+    A classe Esteira da Tarefa 1 foi removida: o transporte entre máquinas passou
+    a ser responsabilidade do fluxo do GerenciadorProducao (KISS/YAGNI).
+
+3. VISÃO DE EXPANSÃO FUTURA
 ---------------------------
-Para as próximas etapas da disciplina, projetamos a expansão do sistema utilizando 
-conceitos mais avançados de orientação a objetos:
-
-- Herança e Polimorfismo (Tarefa 2): criação de diferentes tipos de prensas 
-  (prensas manuais vintage e prensas automáticas de alta velocidade) e de diferentes 
-  módulos de inspeção (inspeção visual de superfície e teste de áudio/ruído).
-
-- Etapas Complementares: implementação do processo de secagem, aplicação do 
-  rótulo central de papel (label) e embalagem em capa protetora de papelão.
-
-- Reciclagem e Tratamento de Exceções: sistema para retrabalhar produtos reprovados 
-  na inspeção, triturando o PVC defeituoso e reincorporando-o ao estoque de 
-  matéria-prima.
-
-- Controle Multiestoque: adição de insumos secundários, como corantes para vinil 
-  marmorizado/colorido e capas protetoras antiestáticas.
+- Tratamento de exceções para estoque/budget insuficientes e entradas inválidas;
+- Interfaces (ex.: Reciclavel) e enum para os status do produto;
+- Etapas complementares: secagem, aplicação do rótulo central (label) e
+  vinil colorido/marmorizado com insumos secundários (corantes);
+- Persistência do armazém e das demandas em arquivo.
 
 ===============================================================================

@@ -1,13 +1,38 @@
-public class Maquina {
+import java.util.Random;
+
+/**
+ * Classe abstrata para os equipamentos da linha de producao. Cada maquina
+ * processa um Produto por vez, cobra um custo de operacao e pode (dependendo
+ * do tipo) afetar a probabilidade de falha do disco ou falhar diretamente.
+ */
+public abstract class Maquina {
+    private static final Random SORTEIO = new Random();
+
     private String nome;
     private boolean ligada;
-    private double capacidadeMaxima;
+    private int capacidadeMaxima;
+    private double probabilidadeFalha;
+    private double custoOperacao;
 
-    public Maquina(String nome, boolean ligada, double capacidadeMaxima) {
+    protected Maquina(String nome, int capacidadeMaxima, double probabilidadeFalha, double custoOperacao) {
         this.nome = nome;
-        this.ligada = ligada;
+        this.ligada = false;
         this.capacidadeMaxima = capacidadeMaxima;
+        this.probabilidadeFalha = probabilidadeFalha;
+        this.custoOperacao = custoOperacao;
     }
+
+    // ---- Metodos abstratos -------------------------------------------------
+
+    /**
+     * Processa um produto.
+     * @return true se o produto segue na linha; false se foi rejeitado.
+     */
+    public abstract boolean processar(Produto produto);
+
+    public abstract String getTipo();
+
+    // ---- Metodos concretos -------------------------------------------------
 
     public void ligar() {
         ligada = true;
@@ -17,26 +42,39 @@ public class Maquina {
         ligada = false;
     }
 
-    public boolean processar(MateriaPrima materiaPrima, double demanda) {
-        if (!estaLigada()
-                || !verificarCapacidade(demanda)
-                || !materiaPrima.verificarDisponibilidade(demanda)) {
-            return false;
-        }
-
-        materiaPrima.consumir(demanda);
-        return true;
-    }
-
-    public boolean verificarCapacidade(double demanda) {
-        return demanda > 0 && demanda <= capacidadeMaxima;
+    public boolean estaLigada() {
+        return ligada;
     }
 
     public String getNome() {
         return nome;
     }
 
-    public boolean estaLigada() {
-        return ligada;
+    public int getCapacidadeMaxima() {
+        return capacidadeMaxima;
+    }
+
+    public double getProbabilidadeFalha() {
+        return probabilidadeFalha;
+    }
+
+    public double getCustoOperacao() {
+        return custoOperacao;
+    }
+
+    /** Sorteia, com a probabilidade propria da maquina, se ela falhou nesta operacao. */
+    protected boolean verificarFalha() {
+        return sortear() < probabilidadeFalha;
+    }
+
+    /** Numero aleatorio em [0, 1) compartilhado pelas subclasses. */
+    protected double sortear() {
+        return SORTEIO.nextDouble();
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%-22s (%s) | falha %.0f%% | R$%.2f/op",
+                nome, getTipo(), probabilidadeFalha * 100, custoOperacao);
     }
 }
