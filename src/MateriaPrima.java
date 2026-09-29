@@ -9,6 +9,10 @@ public class MateriaPrima {
     private double custoPorUnidade;
 
     public MateriaPrima(int id, String nome, double quantidade, String unidade, double custoPorUnidade) {
+        if (!Double.isFinite(quantidade) || quantidade < 0
+                || !Double.isFinite(custoPorUnidade) || custoPorUnidade <= 0) {
+            throw new IllegalArgumentException("Estoque ou custo invalido.");
+        }
         this.id = id;
         this.nome = nome;
         this.quantidade = quantidade;
@@ -21,18 +25,19 @@ public class MateriaPrima {
         if (!verificarDisponibilidade(consumo)) {
             return false;
         }
-        quantidade -= consumo;
+        quantidade = Math.max(0.0, quantidade - consumo);
         return true;
     }
 
     public void adicionarEstoque(double quantidadeRecebida) {
-        if (quantidadeRecebida > 0) {
+        if (Double.isFinite(quantidadeRecebida) && quantidadeRecebida > 0
+                && Double.isFinite(quantidade + quantidadeRecebida)) {
             quantidade += quantidadeRecebida;
         }
     }
 
     public boolean verificarDisponibilidade(double demanda) {
-        return demanda > 0 && quantidade >= demanda;
+        return Double.isFinite(demanda) && demanda > 0 && quantidade + 1e-9 >= demanda;
     }
 
     public int getId() {

@@ -13,7 +13,7 @@ public class LpStandard extends Produto {
 
     @Override
     public void processar() {
-        setStatus("prensado a 140g em ciclo padrao");
+        setStatus(StatusProduto.PRENSADO);
     }
 
     @Override

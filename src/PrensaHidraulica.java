@@ -1,7 +1,7 @@
 /**
- * Maquina de processamento: prensa o PVC aquecido no disco. Nao falha
- * diretamente, mas em X% das prensagens deixa micro-bolhas ou empenamento,
- * aumentando a probabilidade de falha acumulada do disco.
+ * Prensa o PVC aquecido. Uma falha deixa bolhas ou empenamento e aumenta
+ * o risco do disco; a rejeicao e decidida depois pela inspecao.
+ * Uma quebra por desgaste impede novos usos.
  */
 public class PrensaHidraulica extends Maquina {
     private static final double INCREMENTO_FALHA = 0.15;
@@ -23,6 +23,7 @@ public class PrensaHidraulica extends Maquina {
             System.out.printf("    [!] %s: bolha de ar na prensagem do disco #%03d (+%.0f%% risco)%n",
                     getNome(), produto.getId(), INCREMENTO_FALHA * 100);
         }
+        registrarUso();
         return true;
     }
 

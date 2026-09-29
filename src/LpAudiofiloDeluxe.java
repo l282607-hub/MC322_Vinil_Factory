@@ -13,7 +13,7 @@ public class LpAudiofiloDeluxe extends Produto {
 
     @Override
     public void processar() {
-        setStatus("prensado a 180g em prensagem lenta");
+        setStatus(StatusProduto.PRENSADO);
     }
 
     @Override

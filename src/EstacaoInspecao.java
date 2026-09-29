@@ -4,10 +4,10 @@
  * A chance de rejeicao e diretamente proporcional a qualidade do disco
  * (criterios mais rigorosos para discos premium) somada a probabilidade de
  * falha acumulada nas maquinas anteriores. Alem disso, a propria estacao pode
- * falhar em Z% das inspecoes, invertendo o resultado (inspecao incorreta).
+ * falhar conforme sua saude e o cenario, invertendo o resultado.
  */
 public class EstacaoInspecao extends Maquina {
-    /** Peso da qualidade na chance de rejeicao (0.9 -> 22.5%, 0.7 -> 17.5%, 0.5 -> 12.5%). */
+    /** Peso base da qualidade; o cenario tambem modifica o rigor. */
     private static final double FATOR_RIGOR = 0.25;
 
     public EstacaoInspecao(String nome, int capacidadeMaxima, double chanceFalha, double custoOperacao) {
@@ -28,13 +28,15 @@ public class EstacaoInspecao extends Maquina {
                     getNome(), produto.getId());
         }
 
-        produto.setStatus(rejeitado ? "REJEITADO na inspecao" : "aprovado");
+        produto.setStatus(rejeitado ? StatusProduto.REJEITADO : StatusProduto.APROVADO);
+        registrarUso();
         return !rejeitado;
     }
 
     /** Qualidade alta = criterio rigoroso; defeitos acumulados somam ao risco. */
     private double calcularChanceRejeicao(Produto produto) {
-        return produto.getQualidade() * FATOR_RIGOR + produto.getProbabilidadeFalhaAcumulada();
+        return Math.min(1.0, produto.getQualidade() * FATOR_RIGOR * getFatorFalhaCenario()
+                + produto.getProbabilidadeFalhaAcumulada());
     }
 
     @Override

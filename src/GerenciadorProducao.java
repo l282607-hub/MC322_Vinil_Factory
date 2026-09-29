@@ -13,8 +13,14 @@ public class GerenciadorProducao {
     private ArrayList<Maquina> maquinas;
     private MateriaPrima materiaPrima;
     private double budget;
+    private Cenario cenario = Cenario.IDEAL;
+    private EstrategiaProducao estrategiaAtual;
+    private int ultimoLote;
 
     public GerenciadorProducao(MateriaPrima materiaPrima, double budget) {
+        if (materiaPrima == null || !Double.isFinite(budget) || budget < 0) {
+            throw new IllegalArgumentException("Estoque obrigatorio e budget nao negativo.");
+        }
         this.demandas = new ArrayList<>();
         this.produtosFabricados = new ArrayList<>();
         this.maquinas = new ArrayList<>();
@@ -22,26 +28,74 @@ public class GerenciadorProducao {
         this.budget = budget;
     }
 
+    public GerenciadorProducao(MateriaPrima materiaPrima, Cenario cenario,
+            EstrategiaProducao estrategia) {
+        this(materiaPrima, cenario.getBudgetInicial());
+        this.cenario = cenario;
+        setEstrategia(estrategia);
+    }
+
+    public final void setEstrategia(EstrategiaProducao novaEstrategia) {
+        if (novaEstrategia == null) {
+            throw new IllegalArgumentException("Estrategia obrigatoria.");
+        }
+        estrategiaAtual = novaEstrategia;
+    }
+
+    public String getNomeEstrategia() {
+        return estrategiaAtual == null ? "Nao definida" : estrategiaAtual.getNomeEstrategia();
+    }
+
+    public Cenario getCenario() { return cenario; }
+
+    public void executarProximaProducao() {
+        if (estrategiaAtual == null || maquinas.isEmpty()) {
+            System.out.println("[ERRO] Configure a estrategia e a linha primeiro.");
+            return;
+        }
+        Demanda proxima = estrategiaAtual.selecionarDemanda(demandas, budget);
+        if (proxima == null) {
+            System.out.println("Nenhum pedido elegivel para a estrategia e o budget atuais.");
+            cancelarDemandasSemRecursos();
+            return;
+        }
+        System.out.println("Pedido selecionado: " + proxima.getTipoProduto());
+        fabricarDemanda(proxima);
+    }
+
     // ---- Configuracao da planta -------------------------------------------
 
     public void adicionarMaquina(Maquina maquina) {
+        if (maquina == null) {
+            throw new IllegalArgumentException("Maquina obrigatoria.");
+        }
+        maquina.configurarCenario(cenario);
         maquinas.add(maquina);
+        for (Demanda demanda : demandas) {
+            atualizarEstimativas(demanda);
+        }
     }
 
     // ---- Demandas ----------------------------------------------------------
 
     public void registrarDemanda(String tipoProduto, int quantidade) {
+        if (quantidade <= 0 || pvcPorUnidade(tipoProduto) == 0 || maquinas.isEmpty()) {
+            System.out.println("[ERRO] Escolha um tipo valido, quantidade positiva e configure a linha.");
+            return;
+        }
         Demanda existente = buscarDemanda(tipoProduto);
         if (existente == null) {
-            demandas.add(new Demanda(tipoProduto, quantidade));
+            Demanda nova = new Demanda(tipoProduto, quantidade);
+            atualizarEstimativas(nova);
+            demandas.add(nova);
         } else {
             existente.atualizarQuantidade(quantidade);
         }
+        System.out.printf("[OK] Pedido de %s: %d disco(s) pendente(s).%n", tipoProduto, quantidade);
     }
 
     public void atualizarDemanda(String tipoProduto, int novaQuantidade) {
         registrarDemanda(tipoProduto, novaQuantidade);
-        System.out.printf("[OK] Demanda de %s atualizada para %d unidade(s).%n", tipoProduto, novaQuantidade);
     }
 
     public void exibirDemandas() {
@@ -59,22 +113,36 @@ public class GerenciadorProducao {
 
     public void fabricarDemanda(String tipoProduto) {
         Demanda demanda = buscarDemanda(tipoProduto);
-        if (demanda == null || demanda.isAtendida()) {
+        if (demanda == null) {
             System.out.println("[ERRO] Nao ha demanda em aberto para " + tipoProduto
                     + ". Atualize a demanda antes de fabricar.");
             return;
         }
+        fabricarDemanda(demanda);
+    }
+
+    /** Producao manual e automatica compartilham o mesmo fluxo. */
+    private void fabricarDemanda(Demanda demanda) {
+        String tipoProduto = demanda.getTipoProduto();
         if (maquinas.isEmpty()) {
             System.out.println("[ERRO] Nenhuma maquina instalada na planta.");
+            return;
+        }
+        if (!linhaDisponivel()) {
+            System.out.println("[ERRO] Linha parada: ha maquina quebrada. Consulte a auditoria.");
             return;
         }
 
         int quantidade = calcularLoteViavel(demanda);
         if (quantidade == 0) {
+            demanda.cancelar();
+            System.out.println("Pedido cancelado por falta de budget ou PVC.");
             return;
         }
 
-        System.out.printf("%n>>> Iniciando lote de %d x %s%n", quantidade, tipoProduto);
+        demanda.iniciarProducao();
+        int lote = ++ultimoLote;
+        System.out.printf("%n>>> Lote %03d: %d x %s%n", lote, quantidade, tipoProduto);
         ligarMaquinas();
 
         int aprovados = 0;
@@ -84,6 +152,10 @@ public class GerenciadorProducao {
         double budgetInicial = budget;
 
         for (int i = 0; i < quantidade; i++) {
+            if (!linhaDisponivel()) {
+                System.out.println("[AVISO] Lote interrompido: uma maquina quebrou no ciclo anterior.");
+                break;
+            }
             Produto disco = criarProduto(tipoProduto);
             if (disco == null) {
                 break;
@@ -92,12 +164,15 @@ public class GerenciadorProducao {
                 System.out.println("[ERRO] PVC acabou no meio do lote.");
                 break;
             }
+            disco.setLote(lote);
 
             System.out.printf("  Disco #%03d entra na linha%n", disco.getId());
             boolean aprovado = passarPelaLinha(disco);
-            if (!aprovado && !disco.getStatus().startsWith("REJEITADO")) {
-                // Interrompido por falta de budget: disco inacabado vai para reciclagem.
-                System.out.println("[ERRO] Budget insuficiente para concluir o lote.");
+            if (!aprovado && disco.getStatus() != StatusProduto.REJEITADO) {
+                // Uma operacao interrompida tambem devolve parte do PVC.
+                System.out.println("[ERRO] Operacao interrompida. Disco inacabado enviado para reciclagem.");
+                disco.setStatus(StatusProduto.REJEITADO);
+                rejeitados++;
                 pvcReciclado += reciclar(disco);
                 break;
             }
@@ -116,6 +191,7 @@ public class GerenciadorProducao {
 
         desligarMaquinas();
         demanda.atender(aprovados);
+        cancelarDemandasSemRecursos();
 
         System.out.println("\n--- RESUMO DO LOTE ---");
         System.out.printf("  Aprovados: %d | Rejeitados: %d%n", aprovados, rejeitados);
@@ -129,12 +205,12 @@ public class GerenciadorProducao {
     // ---- Compras -----------------------------------------------------------
 
     public void comprarMateriaPrima(double quantidade) {
-        if (quantidade <= 0) {
+        if (!Double.isFinite(quantidade) || quantidade <= 0) {
             System.out.println("[ERRO] Quantidade invalida.");
             return;
         }
         double custo = quantidade * materiaPrima.getCustoPorUnidade();
-        if (custo > budget) {
+        if (!Double.isFinite(custo) || custo > budget) {
             System.out.printf("[ERRO] Compra de %.2f %s custa R$%.2f; budget disponivel: R$%.2f.%n",
                     quantidade, materiaPrima.getUnidade(), custo, budget);
             return;
@@ -163,7 +239,7 @@ public class GerenciadorProducao {
             System.out.println("Armazem vazio.");
         } else {
             for (Produto p : produtosFabricados) {
-                System.out.println("  " + p);
+                System.out.println("  " + p.gerarRelatorioDiagnostico());
             }
             System.out.println("  Por tipo:");
             System.out.printf("    %-28s %d%n", LpAudiofiloDeluxe.TIPO, contarNoArmazem(LpAudiofiloDeluxe.TIPO));
@@ -183,6 +259,45 @@ public class GerenciadorProducao {
 
     public double getBudget() {
         return budget;
+    }
+
+    /** A mesma colecao aceita objetos de duas hierarquias diferentes. */
+    public void gerarAuditoriaGeral() {
+        ArrayList<Auditavel> componentes = new ArrayList<>();
+        componentes.addAll(maquinas);
+        componentes.addAll(produtosFabricados);
+        int alertas = 0;
+        System.out.println("\n--- AUDITORIA: AGULHA FINA ---");
+        for (Auditavel componente : componentes) {
+            System.out.println(componente.gerarRelatorioDiagnostico());
+            if (componente.precisaManutencao()) {
+                alertas++;
+            }
+        }
+        System.out.printf("Componentes: %d | Alertas: %d%n", componentes.size(), alertas);
+    }
+
+    private void atualizarEstimativas(Demanda demanda) {
+        demanda.configurarEstimativas(pvcPorUnidade(demanda.getTipoProduto()), calcularCustoProducao(1));
+    }
+
+    private boolean linhaDisponivel() {
+        for (Maquina maquina : maquinas) {
+            if (maquina.getStatus() == StatusMaquina.QUEBRADA) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void cancelarDemandasSemRecursos() {
+        for (Demanda demanda : demandas) {
+            if (demanda.estaPendente() && (demanda.calcularQuantidadeViavel(budget) == 0
+                    || !materiaPrima.verificarDisponibilidade(demanda.getConsumoPorUnidade()))) {
+                demanda.cancelar();
+                System.out.println("Pedido cancelado por falta de recursos: " + demanda.getTipoProduto());
+            }
+        }
     }
 
     // ---- Logica interna (privada) -----------------------------------------
@@ -205,9 +320,12 @@ public class GerenciadorProducao {
         double pvcPorUnidade = pvcPorUnidade(demanda.getTipoProduto());
         double custoPorDisco = calcularCustoProducao(1);
 
-        int porEstoque = (int) Math.floor(materiaPrima.getQuantidade() / pvcPorUnidade);
-        int porBudget = (int) Math.floor(budget / custoPorDisco);
+        int porEstoque = (int) Math.floor((materiaPrima.getQuantidade() + 1e-9) / pvcPorUnidade);
+        int porBudget = demanda.calcularQuantidadeViavel(budget);
         int viavel = Math.min(pedido, Math.min(porEstoque, porBudget));
+        for (Maquina maquina : maquinas) {
+            viavel = Math.min(viavel, maquina.getCapacidadeMaxima());
+        }
 
         if (viavel <= 0) {
             System.out.printf("[ERRO] Impossivel fabricar %s: precisa de %.2f kg de PVC (ha %.2f) e R$%.2f por disco (ha R$%.2f).%n",
@@ -215,7 +333,7 @@ public class GerenciadorProducao {
             return 0;
         }
         if (viavel < pedido) {
-            System.out.printf("[AVISO] Demanda de %d, mas estoque/budget permitem apenas %d. Fabricando lote parcial.%n",
+            System.out.printf("[AVISO] Pedido de %d, mas recursos/capacidade permitem %d neste lote.%n",
                     pedido, viavel);
         }
         return viavel;
@@ -224,10 +342,10 @@ public class GerenciadorProducao {
     /** Leva o disco por todas as maquinas, debitando o custo de cada operacao. */
     private boolean passarPelaLinha(Produto disco) {
         for (Maquina maquina : maquinas) {
-            if (budget < maquina.getCustoOperacao()) {
+            if (!maquina.estaLigada() || budget + 1e-9 < maquina.getCustoOperacao()) {
                 return false;
             }
-            budget -= maquina.getCustoOperacao();
+            budget = Math.max(0.0, budget - maquina.getCustoOperacao());
             if (!maquina.processar(disco)) {
                 return false;
             }
@@ -243,11 +361,11 @@ public class GerenciadorProducao {
     }
 
     private Produto criarProduto(String tipoProduto) {
-        if (tipoProduto.equals(LpAudiofiloDeluxe.TIPO)) {
+        if (LpAudiofiloDeluxe.TIPO.equals(tipoProduto)) {
             return new LpAudiofiloDeluxe();
-        } else if (tipoProduto.equals(LpStandard.TIPO)) {
+        } else if (LpStandard.TIPO.equals(tipoProduto)) {
             return new LpStandard();
-        } else if (tipoProduto.equals(CompactoSete.TIPO)) {
+        } else if (CompactoSete.TIPO.equals(tipoProduto)) {
             return new CompactoSete();
         }
         System.out.println("[ERRO] Tipo de produto desconhecido: " + tipoProduto);
@@ -255,17 +373,19 @@ public class GerenciadorProducao {
     }
 
     private double pvcPorUnidade(String tipoProduto) {
-        if (tipoProduto.equals(LpAudiofiloDeluxe.TIPO)) {
+        if (LpAudiofiloDeluxe.TIPO.equals(tipoProduto)) {
             return LpAudiofiloDeluxe.PVC_POR_UNIDADE;
-        } else if (tipoProduto.equals(LpStandard.TIPO)) {
+        } else if (LpStandard.TIPO.equals(tipoProduto)) {
             return LpStandard.PVC_POR_UNIDADE;
+        } else if (CompactoSete.TIPO.equals(tipoProduto)) {
+            return CompactoSete.PVC_POR_UNIDADE;
         }
-        return CompactoSete.PVC_POR_UNIDADE;
+        return 0;
     }
 
     private Demanda buscarDemanda(String tipoProduto) {
         for (Demanda d : demandas) {
-            if (d.getTipoProduto().equals(tipoProduto)) {
+            if (d.getTipoProduto().equals(tipoProduto) && d.estaPendente()) {
                 return d;
             }
         }

@@ -13,7 +13,7 @@ public class CompactoSete extends Produto {
 
     @Override
     public void processar() {
-        setStatus("prensado em ciclo rapido");
+        setStatus(StatusProduto.PRENSADO);
     }
 
     @Override

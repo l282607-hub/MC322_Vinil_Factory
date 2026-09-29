@@ -1,59 +1,66 @@
 # GroovePress Vinyl Works
 
-Projeto de MC322 (Programacao Orientada a Objetos) que simula, pelo terminal,
-uma fabrica de discos de vinil.
-
-## Integrantes
+Projeto de MC322: simulacao de uma fabrica de discos de vinil pelo terminal.
 
 - Jeorde Antonio - RA 295164
 - Leo Bertoli - RA 282607
 
-## Tarefa 2 - Expansao e Complexidade
+## Tarefa 3
 
-A planta agora tem:
-
-- **3 formatos de disco** (subclasses de `Produto`): `LpAudiofiloDeluxe` (0.9),
-  `LpStandard` (0.7) e `CompactoSete` (0.5), cada um com consumo de PVC e tempo
-  de prensagem proprios;
-- **Linha de 3 maquinas** (subclasses de `Maquina`): `PrensaHidraulica` ->
-  `EmbaladoraCapas` -> `EstacaoInspecao`, com falhas aleatorias (`Random`);
-- **Inspecao proporcional a qualidade**: discos premium sao reprovados com mais
-  frequencia, e defeitos acumulados nas maquinas anteriores somam ao risco;
-- **Demandas** das gravadoras, **budget** (debitado na compra de PVC e em cada
-  operacao de maquina) e **armazem** de discos aprovados, todos em `ArrayList`;
-- **Reciclagem**: discos reprovados sao triturados e 50% do PVC volta ao estoque.
-
-## Estrutura
-
-```
-src/
-  Main.java                 menu e alocacao do budget
-  GerenciadorProducao.java  demandas, maquinas, armazem, budget
-  Demanda.java
-  MateriaPrima.java
-  Produto.java              abstrata
-  LpAudiofiloDeluxe.java
-  LpStandard.java
-  CompactoSete.java
-  Maquina.java              abstrata
-  PrensaHidraulica.java
-  EmbaladoraCapas.java
-  EstacaoInspecao.java
-justificativa.txt
-```
+Tres estrategias de selecao de pedidos, enums para os estados, auditoria de
+maquinas e produtos, cenarios Ideal/Apocaliptico, desgaste e armazem por lote.
+As decisoes e os parametros estao em [justificativa.txt](justificativa.txt).
 
 ## Compilar e executar
 
-```bash
-javac -d bin $(find src -name "*.java")
+Requer um JDK (Java 8 ou superior). Execute na pasta do projeto.
+
+CMD:
+
+```bat
+javac -encoding UTF-8 -d bin src\*.java
 java -cp bin Main
 ```
 
-No Windows (PowerShell):
+PowerShell:
 
 ```powershell
-javac -d bin (Get-ChildItem -Recurse src -Filter *.java | ForEach-Object FullName)
+javac -encoding UTF-8 -d bin (Get-ChildItem src -Filter *.java | ForEach-Object FullName)
 java -cp bin Main
 ```
 
-O programa aceita apenas entradas numericas.
+Linux/macOS:
+
+```sh
+javac -encoding UTF-8 -d bin src/*.java
+java -cp bin Main
+```
+
+Para repetir os sorteios, use uma semente: `java -cp bin Main 322`.
+Escolha o cenario inicial e navegue pelos submenus. Zero volta ou encerra.
+Em quantidade de PVC, tanto `1,5` quanto `1.5` sao aceitos.
+
+## Fluxo
+
+Pedido -> estrategia -> prensa -> embalagem -> inspecao -> armazem.
+Rejeitados devolvem metade do PVC; apenas aprovados abatem a demanda.
+A auditoria mostra saude das maquinas e risco dos discos.
+Maquinas quebradas ficam paradas ate encerrar a simulacao; reparo nao foi
+implementado. Os dados nao sao salvos entre execucoes.
+
+## Conferencia automatizada
+
+Os testes usam apenas Java, sem bibliotecas externas:
+
+```bat
+javac -encoding UTF-8 -cp bin -d bin tests\TesteTarefa3.java
+java -cp bin TesteTarefa3
+```
+
+No Linux/macOS, troque a barra do caminho por `tests/TesteTarefa3.java`.
+
+## Entrega
+
+Criar a release `tarefa3-295164-282607` com o codigo completo e
+`justificativa.txt`. Depois, enviar o link direto da release no formulario
+da disciplina. As pastas `bin/` e arquivos `.class` nao precisam ser enviados.

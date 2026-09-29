@@ -1,7 +1,7 @@
 /**
  * Maquina de embalagem: coloca o disco no envelope antiestatico e na capa de
- * papelao. Nao falha diretamente, mas em Y% dos casos risca o disco ao
- * envelopar, aumentando a probabilidade de falha acumulada.
+ * papelao. Uma falha risca o disco ao envelopar, aumentando seu risco.
+ * Uma quebra por desgaste impede novos usos.
  */
 public class EmbaladoraCapas extends Maquina {
     private static final double INCREMENTO_FALHA = 0.10;
@@ -16,13 +16,14 @@ public class EmbaladoraCapas extends Maquina {
             return false;
         }
 
-        produto.setStatus("embalado em capa e envelope antiestatico");
+        produto.setStatus(StatusProduto.EMBALADO);
 
         if (verificarFalha()) {
             produto.aumentarProbabilidadeFalha(INCREMENTO_FALHA);
             System.out.printf("    [!] %s: risco superficial ao envelopar o disco #%03d (+%.0f%% risco)%n",
                     getNome(), produto.getId(), INCREMENTO_FALHA * 100);
         }
+        registrarUso();
         return true;
     }
 

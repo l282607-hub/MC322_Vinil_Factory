@@ -1,0 +1,3 @@
+public enum StatusProduto {
+    AGUARDANDO, PRENSADO, EMBALADO, APROVADO, REJEITADO
+}

@@ -1,90 +1,131 @@
-===============================================================================
-                       JUSTIFICATIVA DE ESCOLHA DO TEMA
-                            GroovePress Vinyl Works
-===============================================================================
+GROOVEPRESS VINYL WORKS - TAREFA 3
+Jeorde Antonio - RA 295164
+Leo Bertoli - RA 282607
 
-Integrantes: Jeorde Antonio (RA 295164) e Leo Bertoli (RA 282607)
+1. TEMA E CONTINUIDADE
 
-1. JUSTIFICATIVA DA ESCOLHA DO TEMA
-----------------------------------
-A escolha da fábrica de discos de vinil "GroovePress Vinyl Works" como tema deste
-projeto nasce de um interesse genuíno pela música e por tudo o que ela carrega
-quando materializada em algo físico. Em uma era dominada pelo digital e pelo
-efêmero, o vinil resiste — e cresce — justamente por representar um ritual: o
-disco que se escolhe, se segura, se cuida. Ver esse processo artesanal e
-industrial ao mesmo tempo, com etapas físicas tão bem definidas (prensagem,
-inspeção, acabamento), nos pareceu um terreno fértil para representar em código
-algo que normalmente só existe no mundo tátil. Mais do que um exercício teórico,
-enxergamos aqui uma aplicação real: entender como modelar cadeias produtivas
-físicas em sistemas orientados a objetos é uma habilidade que se estende muito
-além da sala de aula, com potencial de abrir portas em áreas como automação
-industrial, gestão de manufatura e sistemas de controle de produção — setores em
-plena expansão e cada vez mais dependentes de software bem estruturado.
+A fabrica de discos de vinil permite representar etapas diferentes de uma linha
+industrial: prensagem, embalagem e inspecao. Mantivemos os tres formatos da
+Tarefa 2: Compacto 7 Polegadas, LP Standard e LP Audiofilo Deluxe. Cada um tem
+consumo de PVC, qualidade e tempo de producao proprios. As classes abstratas
+Produto e Maquina continuam concentrando os atributos e comportamentos comuns.
 
-Em nossa planta industrial, a matéria-prima principal é o Polímero de PVC Reciclado.
-Esse insumo é transportado até a prensa hidráulica e, após ser transformado em disco
-de vinil, segue até a estação de inspeção de qualidade, onde é aprovado antes do
-despacho.
+O PVC e medido em kg. Os consumos por unidade sao 0,10 kg para o compacto,
+0,20 kg para o standard e 0,40 kg para o deluxe. O estoque inicial e 20 kg e a
+compra custa R$ 3/kg. A prensa custa R$ 4 por uso, a embaladora R$ 1,50 e a
+inspecao R$ 2,50, totalizando R$ 8 por disco que percorre toda a linha.
+Discos rejeitados devolvem 50% do PVC consumido ao estoque.
 
-2. EVOLUÇÃO NA TAREFA 2
------------------------
-Na Tarefa 1 a planta prensava um único disco por vez, sem falhas e sem custo. Na
-Tarefa 2 ela virou uma fábrica de verdade: recebe encomendas das gravadoras, opera
-uma linha com três máquinas, paga por cada operação e lida com defeitos.
+2. STRATEGY E PEDIDOS DAS GRAVADORAS
 
-2.1 Hierarquia de produtos (classe abstrata Produto)
-    Os três formatos que a GroovePress prensa viraram subclasses, cada uma com
-    qualidade e consumo de PVC próprios:
-      - LpAudiofiloDeluxe  -> qualidade 0.9, 0.40 kg de PVC (LP duplo de 180g)
-      - LpStandard         -> qualidade 0.7, 0.20 kg de PVC (LP 12" de 140g)
-      - CompactoSete       -> qualidade 0.5, 0.10 kg de PVC (single de 7")
-    Cada formato define seu próprio processar() (ciclo de prensagem) e
-    calcularTempoProducao(). O atributo estático totalProdutosFabricados gera os
-    IDs e contabiliza todas as instâncias criadas.
+EstrategiaProducao define selecionarDemanda e getNomeEstrategia. As classes
+concretas apenas consultam os pedidos e escolhem um deles. Nao alteram estoque,
+orcamento ou status. O GerenciadorProducao guarda uma referencia da interface;
+as implementacoes concretas sao escolhidas na Main.
 
-2.2 Hierarquia de máquinas (classe abstrata Maquina)
-      - PrensaHidraulica  (processamento) -> não falha, mas em 20% das prensagens
-        deixa bolha de ar e soma +15% ao risco acumulado do disco;
-      - EmbaladoraCapas   (embalagem)     -> não falha, mas em 15% dos casos risca
-        o disco ao envelopar e soma +10% ao risco acumulado;
-      - EstacaoInspecao   (inspeção)      -> única que pode falhar diretamente
-        (5%): quando falha, a leitura do sensor inverte o resultado da inspeção.
+- EstrategiaFilaGravadoras: respeita a ordem de chegada dos pedidos pendentes.
+- EstrategiaGrandeTiragem: prioriza o maior numero de discos ainda devidos.
+  Em empate, preserva a ordem de chegada.
+- EstrategiaMaisDiscos: compara quantas unidades de cada pedido cabem no
+  orcamento, aceitando lotes parciais. No empate, escolhe o formato que consome
+  menos PVC por disco; persistindo o empate, respeita a fila.
 
-2.3 Qualidade x Inspeção (diretamente proporcional)
-    A chance de rejeição na inspeção = qualidade x 0.25 + risco acumulado. Um LP
-    Deluxe parte de 22,5% de rejeição (critério audiófilo, rigoroso); um Compacto
-    parte de 12,5% (critério flexível). Defeitos das máquinas anteriores somam a
-    esse valor, então quanto mais máquinas o disco atravessa com problema, maior
-    a chance de reprovação.
+Na linha atual, todos os formatos custam R$ 8 em operacoes por unidade. Por
+isso, as duas ultimas estrategias podem coincidir quando o budget e farto.
+Com R$ 16 e pedidos de 2 deluxe, 5 standard e 10 compactos, a fila escolhe
+o deluxe, enquanto MaisDiscos escolhe o compacto: ambas financiam 2 unidades,
+mas o compacto economiza PVC.
 
-2.4 Demandas, budget e armazém (GerenciadorProducao)
-    ArrayLists guardam as demandas, as máquinas e o armazém de discos aprovados.
-    O budget é alocado na Main (R$1000) e debitado em duas ocasiões: na compra de
-    PVC do fornecedor (R$3/kg) e no custo de operação de cada máquina por disco.
-    Se estoque ou budget não bastam para a demanda inteira, o gerenciador avisa e
-    fabrica um lote parcial; a demanda só é marcada como atendida quando todos os
-    discos pedidos foram aprovados.
+As estimativas usam o custo operacional da linha. O PVC ja em estoque nao e
+cobrado novamente; comprar mais PVC e uma despesa separada. A estimativa nao
+promete aprovacao de todos os discos, pois falhas e rejeicoes sao aleatorias.
+O gerenciador verifica o estoque e limita o lote pela menor capacidade das
+maquinas depois da selecao. A estrategia financeira recebe somente o budget,
+como definido no contrato do enunciado.
 
-2.5 Toque próprio: reciclagem de rejeitados
-    Como prometido na Tarefa 1, discos reprovados não são descartados: são
-    triturados e 50% do PVC volta ao estoque, exatamente como acontece em prensas
-    de vinil reais. O resumo de cada lote mostra quantos kg foram recuperados.
+3. ENUMS E TRANSICOES
 
-2.6 Encapsulamento e métodos privados
-    Todos os atributos são privados com getters públicos. A lógica interna do
-    gerenciador (calcularCustoProducao, calcularLoteViavel, passarPelaLinha,
-    reciclar, criarProduto, buscarDemanda) é privada; verificarFalha e sortear são
-    protegidos na Maquina para uso exclusivo das subclasses.
+StatusDemanda substitui o boolean atendida. Um pedido positivo nasce PENDENTE,
+passa a EM_PRODUCAO e termina CONCLUIDA se todos os discos forem aprovados.
+Se ainda faltarem discos, volta a PENDENTE. Sem recursos para fabricar nem
+uma unidade, e CANCELADA. A quantidade restante e preservada para consulta.
 
-    A classe Esteira da Tarefa 1 foi removida: o transporte entre máquinas passou
-    a ser responsabilidade do fluxo do GerenciadorProducao (KISS/YAGNI).
+Pedidos concluidos e cancelados ficam no historico. Registrar novamente esse
+formato cria outro pedido no final da fila. Atualizar um pedido pendente troca
+apenas sua quantidade restante, sem mudar a ordem de chegada. Quantidade zero
+no menu significa voltar, evitando confundir cancelamento com atendimento.
+Os metodos impedem concluir um pedido cancelado ou iniciar um concluido.
 
-3. VISÃO DE EXPANSÃO FUTURA
----------------------------
-- Tratamento de exceções para estoque/budget insuficientes e entradas inválidas;
-- Interfaces (ex.: Reciclavel) e enum para os status do produto;
-- Etapas complementares: secagem, aplicação do rótulo central (label) e
-  vinil colorido/marmorizado com insumos secundários (corantes);
-- Persistência do armazém e das demandas em arquivo.
+StatusMaquina representa DESLIGADA, LIGADA e QUEBRADA. StatusProduto representa
+AGUARDANDO, PRENSADO, EMBALADO, APROVADO e REJEITADO, eliminando comparacoes de
+textos para controlar a linha.
 
-===============================================================================
+4. CENARIOS E DESGASTE
+
+Cenario e um enum com descricao, budget inicial, fator de falha e desgaste.
+A escolha ocorre antes de montar a fabrica:
+
+- Ideal: R$ 10000, fator de falha 0,1 e desgaste aleatorio de 0 ate 0,5
+  ponto por uso (limite superior exclusivo).
+- Apocaliptico: R$ 160, fator de falha 3 e desgaste de 0 ate 12 pontos.
+
+Cada maquina comeca com saude 100. Sua chance efetiva de falha e:
+minimo(1, chanceBase * fatorCenario * 100 / saude).
+As chances base sao 20% para prensa, 15% para embalagem e 5% para o sensor.
+Com saude zero, a maquina fica QUEBRADA e nao pode ser ligada nem operar.
+O desgaste acontece ao terminar a operacao; a quebra bloqueia o proximo ciclo.
+A saude nunca fica negativa. O limiar de manutencao inicia em 30 e pode ser
+configurado por setLimiarManutencao. O historico conta falhas sorteadas.
+
+Uma quebra interrompe o lote e preserva os discos aprovados. O pedido fica
+pendente se ainda houver recursos. Reparo e opcional no enunciado e nao foi
+implementado: a linha quebrada permanece parada nessa simulacao.
+
+Na inspecao, o risco de rejeicao e:
+minimo(1, qualidade * 0,25 * fatorCenario + riscoAcumulado).
+Foi mantido o criterio da Tarefa 2: o formato premium tem inspecao mais
+rigorosa. A prensa defeituosa acrescenta 0,15 ao risco; um risco na embalagem
+acrescenta 0,10. A falha do sensor ainda inverte o resultado da inspecao.
+Assim, o cenario interfere tanto nas maquinas quanto na rejeicao dos discos.
+
+5. AUDITORIA E ARMAZEM
+
+Maquina e Produto implementam Auditavel. O relatorio geral monta uma
+ArrayList<Auditavel> com as maquinas e os discos do armazem. Um unico for
+chama gerarRelatorioDiagnostico e precisaManutencao para ambos, demonstrando
+polimorfismo entre classes de hierarquias diferentes.
+
+Maquinas mostram saude, estado, probabilidade de falha e historico de erros.
+Nos produtos, precisaManutencao significa necessidade de revisao: qualidade
+menor que 0,5, risco acumulado de pelo menos 0,20 ou rejeicao. Isso nao retira
+automaticamente um produto do armazem, pois o sensor pode aprovar um disco
+com risco elevado. O alerta deixa essa situacao visivel.
+
+Cada lote recebe um numero sequencial. O armazem lista ID, tipo, lote,
+qualidade, status e risco de cada disco, alem das quantidades por formato.
+Somente aprovados entram nele. A consulta de PVC fica separada.
+
+6. MENU E ORGANIZACAO
+
+A Main cuida da entrada e da navegacao, com submenus de pedidos, prensagem,
+estoques, estrategias e auditoria. Cenario, budget e estrategia aparecem no
+cabecalho. Os nomes Fila das gravadoras, Grande tiragem, Mais discos na loja
+e Agulha fina relacionam as funcionalidades ao tema de vinil.
+
+A leitura aceita ponto ou virgula na quantidade de PVC, rejeita valores
+invalidos, infinitos e NaN, e encerra sem erro quando acaba a entrada.
+Cada classe, interface e enum fica em seu proprio arquivo.
+Nao foram adicionados frameworks, banco de dados ou interface grafica.
+
+A simulacao pode receber uma semente inteira como argumento:
+java -cp bin Main 322
+Com a mesma semente e as mesmas entradas, os sorteios podem ser repetidos.
+Sem argumento, as execucoes usam sorteios diferentes.
+
+7. LIMITES E CONTINUIDADE
+
+Os dados ficam somente na memoria durante a execucao. Nao ha garantia de
+aprovar todos os discos de um pedido em um lote. As capacidades das maquinas
+sao interpretadas como discos por lote, e a menor limita a linha.
+Persistencia, reparo pago e novas etapas podem ser acrescentados depois, sem
+alterar o contrato das estrategias ou o da auditoria.
