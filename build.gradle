@@ -1,0 +1,55 @@
+// Configuracao da construcao do projeto. Sem logica de negocio aqui.
+
+plugins {
+    // Compila, empacota e fornece a tarefa 'run' para a aplicacao Java.
+    id 'application'
+}
+
+group = 'br.unicamp.mc322'
+version = '4.0'
+
+// Projeto sem dependencias externas: usa apenas a biblioteca padrao do Java.
+repositories {
+    mavenCentral()
+}
+
+application {
+    // Classe com o metodo main (pacote padrao).
+    mainClass = 'Main'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs << '-Xlint:all'
+}
+
+// ./gradlew run: o programa e interativo, entao precisa receber o teclado.
+tasks.named('run') {
+    standardInput = System.in
+}
+
+// ./gradlew javadoc: documentacao em build/docs/javadoc/index.html
+tasks.named('javadoc') {
+    options.encoding = 'UTF-8'
+    options.windowTitle = 'GroovePress Vinyl Works'
+    options.docTitle = 'GroovePress Vinyl Works - API'
+    // Verifica tags, referencias e HTML malformado em tudo que e publico.
+    options.addBooleanOption('Xdoclint:all', true)
+}
+
+// Os testes sao um programa Java simples (src/test/java/TestePlanta.java), sem
+// JUnit; rodam na tarefa 'verificar', que faz parte de 'check' e de 'build'.
+tasks.named('test') {
+    enabled = false
+}
+
+tasks.register('verificar', JavaExec) {
+    group = 'verification'
+    description = 'Executa a conferencia automatizada da planta (TestePlanta).'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'TestePlanta'
+}
+
+tasks.named('check') {
+    dependsOn tasks.named('verificar')
+}

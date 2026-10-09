@@ -1,6 +1,9 @@
-GROOVEPRESS VINYL WORKS - TAREFA 3
+GROOVEPRESS VINYL WORKS - TAREFA 4
 Jeorde Antonio - RA 295164
 Leo Bertoli - RA 282607
+
+Este documento acumula as decisoes das tarefas anteriores (secoes 1 a 7) e
+acrescenta as da Tarefa 4: Gradle, Javadoc e tratamento de erros (secao 8).
 
 1. TEMA E CONTINUIDADE
 
@@ -118,7 +121,7 @@ Cada classe, interface e enum fica em seu proprio arquivo.
 Nao foram adicionados frameworks, banco de dados ou interface grafica.
 
 A simulacao pode receber uma semente inteira como argumento:
-java -cp bin Main 322
+./gradlew run --args="322"
 Com a mesma semente e as mesmas entradas, os sorteios podem ser repetidos.
 Sem argumento, as execucoes usam sorteios diferentes.
 
@@ -129,3 +132,137 @@ aprovar todos os discos de um pedido em um lote. As capacidades das maquinas
 sao interpretadas como discos por lote, e a menor limita a linha.
 Persistencia, reparo pago e novas etapas podem ser acrescentados depois, sem
 alterar o contrato das estrategias ou o da auditoria.
+
+8. TAREFA 4: GRADLE, JAVADOC E TRATAMENTO DE ERROS
+
+8.1 Gradle
+
+O projeto passou a seguir a estrutura padrao de um projeto Java com Gradle:
+o codigo ficou em src/main/java (mantivemos o pacote padrao, como nas tarefas
+anteriores) e a conferencia automatizada em src/test/java. Os arquivos
+build.gradle e settings.gradle existem na raiz, e o Gradle Wrapper (gradlew,
+gradlew.bat e gradle/wrapper) fixa a versao 8.14.3, entao o avaliador nao
+precisa instalar o Gradle.
+
+build.gradle usa o plugin application, define Main como classe principal e
+nao tem regras de negocio, apenas a configuracao da construcao. Como o
+programa e interativo, a tarefa run recebe o teclado (standardInput). O
+projeto nao tem dependencias externas; o bloco repositories existe so para
+deixar a estrutura pronta para adicionar bibliotecas.
+
+Tarefas: build compila, empacota e roda a conferencia; run executa; javadoc
+gera a documentacao; verificar roda somente a conferencia. Os testes das
+tarefas anteriores eram um programa Java simples e continuam assim (arquivo
+TestePlanta, antes TesteTarefa3), sem JUnit, para nao exigir bibliotecas.
+Por isso a tarefa padrao test fica desabilitada e a tarefa verificar entra em
+check. Isso evita que o Gradle trate "nenhum teste JUnit encontrado" como erro.
+
+O Gradle 8.14.3 exige um JDK entre 17 e 24 ja instalado (testado com 17). A
+primeira execucao baixa a distribuicao do Gradle, entao precisa de internet.
+
+8.2 Javadoc
+
+Todas as classes, interfaces e enums, e todos os membros publicos e
+protegidos, tem comentario Javadoc com @param, @return, @throws e @author onde
+cabe, alem de {@link} e {@see} para ligar as classes relacionadas. Os
+comentarios descrevem as regras de negocio (por exemplo, a formula da chance
+de falha, a proporcao entre qualidade e inspecao e o ciclo de StatusDemanda),
+nao so o nome do metodo. Atributos privados nao tem Javadoc individual, exceto
+os dados das excecoes, que fazem parte da forma serializada.
+
+O build.gradle liga o doclint completo (-Xdoclint:all). Com isso a tarefa
+javadoc termina sem erros e sem avisos, e uma tag errada ou um HTML malformado
+nos comentarios derrubaria a geracao.
+
+8.3 Excecoes de dominio
+
+PlantaException e a raiz e herda de RuntimeException, para que as regras nao
+poluam as assinaturas com throws. As filhas separam os problemas pelo que o
+usuario precisa fazer para resolver:
+
+- DemandaInvalidaException: pedido inexistente, tipo desconhecido, quantidade
+  invalida, ou operacao incompativel com o estado do pedido (produzir um
+  pedido concluido ou cancelado). A mensagem cita o estado atual do pedido.
+- RecursoInsuficienteException: falta de PVC ou de budget. Guarda o recurso, a
+  quantidade necessaria e a disponivel, e a mensagem diz como corrigir
+  (comprar PVC, por exemplo).
+- MaquinaIndisponivelException: linha sem maquinas ou com maquina quebrada. A
+  mensagem diz qual maquina quebrou.
+- EntradaInvalidaException: valor digitado ou recebido que nao pode ser aceito.
+
+Violacoes de contrato do programador (construtor com argumento nulo, limiar de
+manutencao fora do intervalo) continuam como IllegalArgumentException, porque
+o usuario nao tem como causa-las nem corrigi-las pelo menu.
+
+8.4 Tres niveis de tratamento
+
+O enunciado pede para diferenciar erros de entrada, de regra de negocio e
+falhas inesperadas, e o codigo trata cada um em um lugar:
+
+1. Entrada: a nova classe LeitorConsole concentra toda a leitura. Ela converte
+   o texto, e quando ele e invalido, lanca EntradaInvalidaException, captura
+   essa excecao no proprio laco, mostra uma mensagem especifica (texto onde
+   se esperava numero, opcao inexistente, linha vazia, numero fora do
+   intervalo, NaN/infinito) e pergunta de novo. O NumberFormatException e
+   sempre convertido em uma mensagem, nunca ignorado.
+2. Regra de negocio: a Main executa cada operacao da planta dentro de
+   executarComTratamento, que captura PlantaException, mostra a mensagem em
+   caixa (formato do enunciado), pausa ate o ENTER e devolve o usuario ao
+   menu em que ele estava.
+3. Falha inesperada: e o unico catch de RuntimeException do programa, no mesmo
+   metodo. Nao e um catch generico que esconde o problema: ele avisa o usuario
+   com o nome da excecao, grava o detalhe completo em System.err e deixa o
+   programa seguir, porque o gerenciador garante estado consistente (8.5).
+   Em condicoes normais essa rede de seguranca nunca e acionada.
+
+Nao existe nenhum catch vazio.
+
+8.5 Consistencia do estado
+
+Regra adotada: o GerenciadorProducao so lanca PlantaException antes de alterar
+qualquer coisa. Em fabricarDemanda, as validacoes (linha operante, PVC, budget
+e capacidade) acontecem primeiro; so depois o pedido entra em producao, as
+maquinas ligam e o estoque e o budget sao debitados. Por isso a mensagem de
+erro pode afirmar "Nenhuma alteracao foi realizada no estoque, no budget nem
+nos pedidos", e isso e verdade. A compra de PVC segue a mesma ordem: valida a
+quantidade, calcula o custo, confere o budget e so entao debita e acrescenta.
+
+O que acontece durante um lote (maquina que quebra, estoque que acaba no meio)
+nao e erro: o lote termina com o que foi aprovado e o resumo informa. Para
+garantir consistencia mesmo diante de um defeito inesperado no meio do lote, o
+laco fica em um bloco try/finally que sempre desliga as maquinas e sempre
+devolve o pedido a um estado valido, abatendo os discos ja aprovados.
+
+A conferencia automatizada compara um instantaneo completo da planta (budget,
+estoque, pedidos, armazem e maquinas) antes e depois de cada erro, para provar
+que nada mudou.
+
+8.6 Erros previstos no enunciado e como sao tratados
+
+- Entrada invalida no menu e opcao inexistente: LeitorConsole, com mensagens
+  distintas, sem sair do menu.
+- Produzir uma demanda inexistente: DemandaInvalidaException.
+- Operacao incompativel com o estado do pedido: DemandaInvalidaException, e a
+  propria Demanda lanca a mesma excecao em atualizarQuantidade, iniciarProducao,
+  atender e cancelar quando o estado nao permite.
+- Falta de materia-prima e orcamento insuficiente: RecursoInsuficienteException,
+  tanto na producao quanto na compra de PVC.
+- Outros casos coerentes com as regras da planta: linha sem maquinas ou com
+  maquina quebrada; quantidade de PVC negativa, NaN ou infinita; quantidade de
+  pedido nao positiva; tipo de disco desconhecido; semente invalida na linha
+  de comando.
+
+8.7 O que mudou em relacao a Tarefa 3
+
+- Na producao manual, falta de PVC ou de budget nao cancela mais o pedido: o
+  erro e informado e o pedido continua pendente. Assim o usuario pode comprar
+  PVC e tentar de novo, sem perder o pedido. O cancelamento automatico da
+  Tarefa 3 continua valendo quando a estrategia nao encontra pedido elegivel e
+  ao final de cada lote.
+- O gerenciador agora comeca com a estrategia Fila das gravadoras, em vez de
+  nenhuma, o que elimina o estado "estrategia nao definida".
+- Mensagens de erro que antes eram impressas como [ERRO] dentro do gerenciador
+  viraram excecoes. Avisos de lote (lote parcial, lote interrompido) seguem
+  como [AVISO], porque descrevem o andamento da producao e nao um erro.
+- A Main perdeu os metodos de leitura, que foram para LeitorConsole. Menus,
+  textos e regras de fabricacao continuam os mesmos.
