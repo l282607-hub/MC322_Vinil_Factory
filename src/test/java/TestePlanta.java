@@ -13,7 +13,8 @@ import java.util.Scanner;
  * <p>Cobre as regras das Tarefas 2 e 3 (pedidos, estrategias, maquinas,
  * estoque, simulacoes) e o tratamento de erros da Tarefa 4: excecoes de
  * dominio, atomicidade (um erro nao altera o estado), validacao de entradas e
- * continuidade do programa apos um erro. Executada por
+ * continuidade do programa apos um erro. Tambem cobre a composicao e o
+ * agrupamento da Tarefa 5. Executada por
  * {@code ./gradlew verificar}, que tambem faz parte de {@code ./gradlew build}.</p>
  *
  * @author Jeorde Antonio
@@ -40,12 +41,154 @@ public class TestePlanta {
         testarAtomicidade();
         testarLeitorConsole();
         testarMenuContinuaAposErro();
+        testarComposicao();
+        testarDesgasteIndependente();
+        testarLinhas();
         System.out.println("OK: " + verificacoes + " verificacoes.");
     }
 
     private static void conferir(boolean condicao, String mensagem) {
         verificacoes++;
         if (!condicao) { throw new AssertionError(mensagem); }
+    }
+
+    private static void testarComposicao() {
+        Maquina configuravel = new Maquina("Tres mecanismos", 10, 0, 1, 3) {
+            @Override public String getTipo() { return "Teste"; }
+            @Override public boolean processar(Produto produto) { return false; }
+        };
+        conferir(configuravel.gerarRelatorioDiagnostico().contains("Atuador de transporte 3"),
+                "Cardinalidade 1:N configuravel por valor primitivo");
+        esperar(IllegalArgumentException.class, () -> new Maquina("Sem atuadores", 10, 0, 1, 0) {
+            @Override public String getTipo() { return "Teste"; }
+            @Override public boolean processar(Produto produto) { return false; }
+        }, "Todo nao pode nascer sem atuadores");
+        Maquina a = new PrensaHidraulica("Prensa A", 20, 0.2, 4);
+        Maquina b = new PrensaHidraulica("Prensa B", 20, 0.2, 4);
+        String relatorio = a.gerarRelatorioDiagnostico();
+        conferir(relatorio.contains("Motor de acionamento") && relatorio.contains("Sensor de alinhamento")
+                && relatorio.contains("Atuador de transporte 1") && relatorio.contains("Atuador de transporte 2"),
+                "Tres tipos de partes e dois atuadores construidos pela maquina");
+        a.ligar();
+        a.processar(new CompactoSete());
+        conferir(a.getSaude() < 100 && b.getSaude() == 100, "Partes exclusivas de cada maquina");
+        a.desligar();
+        conferir(a.gerarRelatorioDiagnostico().contains("desligado"), "Desligamento delegado ao motor");
+        for (java.lang.reflect.Method metodo : Maquina.class.getMethods()) {
+            Class<?> retorno = metodo.getReturnType();
+            conferir(retorno != MotorAcionamento.class && retorno != SensorAlinhamento.class
+                    && retorno != AtuadorTransporte.class && !java.util.Collection.class.isAssignableFrom(retorno),
+                    "API da maquina nao expoe partes nem sua colecao");
+        }
+        MotorAcionamento motor = new MotorAcionamento();
+        motor.ligar();
+        motor.desgastar(100);
+        conferir(!motor.estaLigado() && motor.precisaManutencao(), "Motor sem saude para sozinho");
+        SensorAlinhamento sensor = new SensorAlinhamento();
+        sensor.desgastar(80);
+        conferir(sensor.precisaManutencao() && sensor.calcularRiscoDesalinhamento() > 0,
+                "Sensor desgastado acrescenta risco real");
+        sensor.desgastar(20);
+        conferir(!sensor.estaOperante(), "Sensor sem calibracao nao le");
+        AtuadorTransporte atuador = new AtuadorTransporte(1);
+        atuador.desgastar(1000);
+        conferir(!atuador.estaOperante() && atuador.getIntegridade() == 0, "Atuador trava sem integridade negativa");
+        esperar(IllegalArgumentException.class, () -> motor.desgastar(Double.NaN), "Desgaste invalido");
+        esperar(IllegalArgumentException.class, () -> new PrensaHidraulica(null, 1, 0, 1), "Maquina sem nome");
+    }
+
+    private static void testarDesgasteIndependente() {
+        boolean motorQuebrou = false;
+        boolean sensorQuebrou = false;
+        boolean atuadorQuebrou = false;
+        for (int semente = 0; semente < 80; semente++) {
+            Maquina.definirSemente(semente);
+            Maquina maquina = new MaquinaTeste(true);
+            maquina.configurarCenario(Cenario.APOCALIPTICO);
+            maquina.ligar();
+            Produto disco = new CompactoSete();
+            for (int uso = 0; uso < 100 && maquina.estaLigada(); uso++) {
+                maquina.processar(disco);
+            }
+            conferir(maquina.getStatus() == StatusMaquina.QUEBRADA, "Desgaste de parte interrompe operacao");
+            String diagnostico = maquina.gerarRelatorioDiagnostico();
+            motorQuebrou |= diagnostico.contains("QUEBRADO");
+            sensorQuebrou |= diagnostico.contains("SEM LEITURA");
+            atuadorQuebrou |= diagnostico.contains("TRAVADO");
+            maquina.ligar();
+            conferir(!maquina.estaLigada(), "Parte quebrada impede religamento");
+        }
+        conferir(motorQuebrou && sensorQuebrou && atuadorQuebrou,
+                "Cada tipo de parte pode interromper a maquina; nao ha ordem fixa de quebra");
+    }
+
+    private static void testarLinhas() {
+        Maquina primeira = new MaquinaTeste(true);
+        java.util.ArrayList<Maquina> origem = new java.util.ArrayList<>();
+        origem.add(primeira);
+        LinhaDeProducao linha = new LinhaDeProducao("Teste de agregacao", origem);
+        origem.clear();
+        conferir(linha.getQuantidadeMaquinas() == 1, "Copia defensiva na entrada");
+        LinhaDeProducao destino = new LinhaDeProducao("Destino");
+        esperar(IllegalArgumentException.class, () -> destino.adicionarMaquina(primeira),
+                "Maquina nao pode pertencer a duas linhas");
+        conferir(destino.getQuantidadeMaquinas() == 0 && linha.getQuantidadeMaquinas() == 1,
+                "Instalacao rejeitada preserva as duas linhas");
+        Maquina livre = new MaquinaTeste(true);
+        esperar(IllegalArgumentException.class,
+                () -> new LinhaDeProducao("Construcao invalida", Arrays.asList(livre, primeira)),
+                "Construtor rejeita maquina ja instalada");
+        destino.adicionarMaquina(livre);
+        conferir(destino.getQuantidadeMaquinas() == 1, "Construtor rejeitado nao prende maquina livre");
+        Maquina ligada = new MaquinaTeste(true);
+        ligada.ligar();
+        esperar(IllegalArgumentException.class, () -> destino.adicionarMaquina(ligada),
+                "Desligar antes de instalar");
+        ligada.desligar();
+        List<Maquina> copia = linha.getMaquinas();
+        esperar(UnsupportedOperationException.class, copia::clear, "Lista retornada e imutavel");
+        conferir(linha.calcularCustoPorDisco() == 8 && linha.getCapacidadeMaxima() == 2,
+                "Linha calcula custo e gargalo");
+        esperar(IllegalArgumentException.class, () -> linha.adicionarMaquina(primeira), "Sem duplicata");
+        linha.ligar();
+        esperar(MaquinaIndisponivelException.class, () -> linha.removerMaquina(primeira), "Nao retirar ligada");
+        Produto disco = new CompactoSete();
+        conferir(linha.processar(disco) == 8 && disco.getStatus() == StatusProduto.APROVADO,
+                "Linha delega operacao e contabiliza custo");
+        linha.desligar();
+        String cascata = linha.gerarRelatorioDiagnostico();
+        conferir(cascata.contains("\n  Linha de teste") && cascata.contains("\n    Motor de acionamento"),
+                "Auditoria hierarquica em cascata");
+        linha.removerMaquina(primeira);
+        conferir(copia.size() == 1 && linha.getQuantidadeMaquinas() == 0, "Snapshot nao muda com lista interna");
+        esperar(MaquinaIndisponivelException.class, linha::ligar, "Linha vazia nao opera");
+        LinhaDeProducao outra = new LinhaDeProducao("Outra linha", Arrays.asList(primeira));
+        conferir(outra.getMaquinas().get(0) == primeira && primeira.getSaude() < 100,
+                "Agregacao permite reinstalar a mesma maquina preservando suas partes");
+        GerenciadorProducao g = planta(20, 100, new MaquinaTeste(true));
+        g.adicionarLinha(outra);
+        esperar(IllegalArgumentException.class, () -> g.getLinhas().get(0).adicionarMaquina(primeira),
+                "Referencia da linha nao permite contornar exclusividade apos registro");
+        esperar(UnsupportedOperationException.class, () -> g.getLinhas().clear(), "Linhas protegidas");
+        esperar(EntradaInvalidaException.class, () -> g.selecionarLinha(0), "Selecao invalida");
+        g.selecionarLinha(2);
+        conferir(g.getNomeLinhaAtual().equals("Outra linha"), "Troca de linha");
+        primeira.setLimiarManutencao(100);
+        conferir(outra.precisaManutencao(), "Alerta sobe da maquina para o agrupador");
+        double budgetAntes = g.getBudget();
+        esperar(EntradaInvalidaException.class, () -> g.adicionarLinha(outra), "Linha duplicada");
+        conferir(g.getBudget() == budgetAntes && g.getNomeLinhaAtual().equals("Outra linha"),
+                "Erro de configuracao preserva budget e linha selecionada");
+        Maquina falhaInesperada = new Maquina("Falha simulada", 1, 0, 3) {
+            @Override public String getTipo() { return "Teste"; }
+            @Override public boolean processar(Produto produto) { throw new IllegalStateException("Falha simulada"); }
+        };
+        LinhaDeProducao interrompida = new LinhaDeProducao("Interrompida", Arrays.asList(falhaInesperada));
+        interrompida.ligar();
+        esperar(IllegalStateException.class, () -> interrompida.processar(new CompactoSete()),
+                "Defeito inesperado nao e escondido pela linha");
+        conferir(interrompida.getCustoUltimoProcessamento() == 3, "Etapa iniciada continua contabilizada");
+        interrompida.desligar();
     }
 
     /** Confere que a operacao lanca a excecao esperada e devolve a excecao. */
@@ -138,6 +281,9 @@ public class TestePlanta {
             for (int i = 0; i < 100 && caos.estaLigada(); i++) { caos.processar(disco); }
         } finally { System.setOut(console); }
         conferir(caos.getStatus() == StatusMaquina.QUEBRADA && caos.getSaude() == 0, "Quebra");
+        String diagnosticoQuebra = caos.gerarRelatorioDiagnostico();
+        conferir(diagnosticoQuebra.contains("TRAVADO") || diagnosticoQuebra.contains("SEM LEITURA")
+                || diagnosticoQuebra.contains("QUEBRADO"), "Diagnostico identifica a parte que parou o Todo");
         conferir(caos.precisaManutencao(), "Manutencao");
         caos.ligar();
         conferir(!caos.estaLigada() && !caos.processar(disco), "Quebrada nao opera");
@@ -474,7 +620,8 @@ public class TestePlanta {
             Main.main(new String[] {"322"});
             String texto = saida.toString("UTF-8");
             conferir(texto.contains("ERRO"), "Caixa de erro exibida");
-            conferir(texto.contains("budget disponivel e R$10000.00"), "Erro de budget explicado");
+            conferir(texto.replaceAll("\\s+", " ").contains(String.format("budget disponivel e R$%.2f", 10000.0)),
+                    "Erro de budget explicado no formato numerico local");
             conferir(texto.contains("Nenhuma alteracao foi realizada"), "Informa que nada mudou");
             conferir(texto.contains("Pressione ENTER para continuar"), "Pausa para leitura");
             conferir(texto.contains("Opcao inexistente: 9"), "Opcao inexistente tratada no menu");
