@@ -1,4 +1,5 @@
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -27,7 +28,8 @@ public class GerenciadorProducao {
 
     private ArrayList<Demanda> demandas;
     private ArrayList<Produto> produtosFabricados;
-    private ArrayList<Maquina> maquinas;
+    private final List<LinhaDeProducao> linhas;
+    private LinhaDeProducao linhaAtual;
     private MateriaPrima materiaPrima;
     private double budget;
     private Cenario cenario = Cenario.IDEAL;
@@ -49,7 +51,9 @@ public class GerenciadorProducao {
         }
         this.demandas = new ArrayList<>();
         this.produtosFabricados = new ArrayList<>();
-        this.maquinas = new ArrayList<>();
+        this.linhas = new ArrayList<>();
+        this.linhaAtual = new LinhaDeProducao("Sala de vinil");
+        this.linhas.add(linhaAtual);
         this.materiaPrima = materiaPrima;
         this.budget = budget;
     }
@@ -64,9 +68,63 @@ public class GerenciadorProducao {
      */
     public GerenciadorProducao(MateriaPrima materiaPrima, Cenario cenario,
             EstrategiaProducao estrategia) {
-        this(materiaPrima, cenario.getBudgetInicial());
+        this(materiaPrima, budgetDoCenario(cenario));
         this.cenario = cenario;
         setEstrategia(estrategia);
+    }
+
+    private static double budgetDoCenario(Cenario cenario) {
+        if (cenario == null) { throw new IllegalArgumentException("Cenario obrigatorio."); }
+        return cenario.getBudgetInicial();
+    }
+
+    /** @return copia imutavel das linhas instaladas */
+    public List<LinhaDeProducao> getLinhas() {
+        return Collections.unmodifiableList(new ArrayList<>(linhas));
+    }
+
+    /** @return nome da linha escolhida para os proximos lotes */
+    public String getNomeLinhaAtual() { return linhaAtual.getNome(); }
+
+    /**
+     * Registra uma linha pronta; suas maquinas nao podem estar em outra linha da planta.
+     * @param linha linha nao vazia
+     * @throws EntradaInvalidaException se nula, vazia, repetida ou com maquina compartilhada
+     */
+    public void adicionarLinha(LinhaDeProducao linha) {
+        if (linha == null || linha.getQuantidadeMaquinas() == 0 || linhas.contains(linha)) {
+            throw new EntradaInvalidaException("Informe uma nova linha com maquinas instaladas.");
+        }
+        for (LinhaDeProducao existente : linhas) {
+            if (existente.getNome().equalsIgnoreCase(linha.getNome())
+                    || !Collections.disjoint(existente.getMaquinas(), linha.getMaquinas())) {
+                throw new EntradaInvalidaException("Nome repetido ou maquina ja instalada em outra linha.");
+            }
+        }
+        linha.configurarCenario(cenario);
+        linhas.add(linha);
+    }
+
+    /**
+     * Escolhe a linha de trabalho e atualiza as estimativas dos pedidos.
+     * @param numero posicao da linha, comecando em 1
+     * @throws EntradaInvalidaException se a posicao nao existir
+     */
+    public void selecionarLinha(int numero) {
+        if (numero < 1 || numero > linhas.size()) {
+            throw new EntradaInvalidaException("Linha inexistente.");
+        }
+        linhaAtual = linhas.get(numero - 1);
+        for (Demanda demanda : demandas) { atualizarEstimativas(demanda); }
+    }
+
+    /** Lista as linhas, indicando a selecionada e sua quantidade de maquinas. */
+    public void exibirLinhas() {
+        for (int i = 0; i < linhas.size(); i++) {
+            LinhaDeProducao linha = linhas.get(i);
+            System.out.printf("%d - %s | %d maquina(s)%s%n", i + 1, linha.getNome(),
+                    linha.getQuantidadeMaquinas(), linha == linhaAtual ? " | selecionada" : "");
+        }
     }
 
     /**
@@ -140,8 +198,13 @@ public class GerenciadorProducao {
         if (maquina == null) {
             throw new IllegalArgumentException("Maquina obrigatoria.");
         }
+        for (LinhaDeProducao linha : linhas) {
+            if (linha.getMaquinas().contains(maquina)) {
+                throw new IllegalArgumentException("Maquina ja instalada na planta.");
+            }
+        }
         maquina.configurarCenario(cenario);
-        maquinas.add(maquina);
+        linhaAtual.adicionarMaquina(maquina);
         for (Demanda demanda : demandas) {
             atualizarEstimativas(demanda);
         }
@@ -169,7 +232,7 @@ public class GerenciadorProducao {
             throw new DemandaInvalidaException("A quantidade do pedido de " + tipoProduto
                     + " deve ser positiva, mas foi " + quantidade + ".");
         }
-        if (maquinas.isEmpty()) {
+        if (linhaAtual.getQuantidadeMaquinas() == 0) {
             throw new MaquinaIndisponivelException(
                     "Nenhuma maquina instalada na planta. Configure a linha antes de registrar pedidos.");
         }
@@ -369,10 +432,8 @@ public class GerenciadorProducao {
 
     /** Lista as maquinas da linha com seu diagnostico. */
     public void exibirMaquinas() {
-        System.out.println("\n--- LINHA DE PRODUCAO ---");
-        for (Maquina m : maquinas) {
-            System.out.println("  " + m);
-        }
+        System.out.println("\n--- ESTRUTURA DA LINHA SELECIONADA ---");
+        System.out.println(linhaAtual.gerarRelatorioDiagnostico());
     }
 
     /**
@@ -385,13 +446,12 @@ public class GerenciadorProducao {
     }
 
     /**
-     * Gera o relatorio de auditoria. A mesma colecao aceita objetos de duas
-     * hierarquias diferentes ({@link Maquina} e {@link Produto}) por meio da
-     * interface {@link Auditavel}.
+     * Gera o relatorio das linhas e discos por meio de {@link Auditavel}.
+     * Cada linha consulta suas maquinas, que consultam as partes.
      */
     public void gerarAuditoriaGeral() {
         ArrayList<Auditavel> componentes = new ArrayList<>();
-        componentes.addAll(maquinas);
+        componentes.addAll(linhas);
         componentes.addAll(produtosFabricados);
         int alertas = 0;
         System.out.println("\n--- AUDITORIA: AGULHA FINA ---");
@@ -413,20 +473,7 @@ public class GerenciadorProducao {
      *                                      quebrada
      */
     private void validarLinhaOperante() {
-        if (maquinas.isEmpty()) {
-            throw new MaquinaIndisponivelException(
-                    "Nenhuma maquina instalada na planta. Configure a linha antes de produzir.");
-        }
-        List<String> quebradas = new ArrayList<>();
-        for (Maquina maquina : maquinas) {
-            if (maquina.getStatus() == StatusMaquina.QUEBRADA) {
-                quebradas.add(maquina.getNome());
-            }
-        }
-        if (!quebradas.isEmpty()) {
-            throw new MaquinaIndisponivelException("Linha parada: " + String.join(", ", quebradas)
-                    + " quebrou. O reparo nao esta disponivel nesta simulacao; veja a auditoria (menu 6).");
-        }
+        linhaAtual.validarDisponibilidade();
     }
 
     /**
@@ -459,9 +506,7 @@ public class GerenciadorProducao {
                     "budget", custoPorDisco, budget);
         }
         int viavel = Math.min(pedido, Math.min(porEstoque, porBudget));
-        for (Maquina maquina : maquinas) {
-            viavel = Math.min(viavel, maquina.getCapacidadeMaxima());
-        }
+        viavel = Math.min(viavel, linhaAtual.getCapacidadeMaxima());
         if (viavel < pedido) {
             System.out.printf("[AVISO] Pedido de %d, mas recursos/capacidade permitem %d neste lote.%n",
                     pedido, viavel);
@@ -476,12 +521,7 @@ public class GerenciadorProducao {
     }
 
     private boolean linhaDisponivel() {
-        for (Maquina maquina : maquinas) {
-            if (maquina.getStatus() == StatusMaquina.QUEBRADA) {
-                return false;
-            }
-        }
-        return true;
+        return linhaAtual.estaDisponivel();
     }
 
     /** Cancela pedidos pendentes que nao cabem mais no budget nem no estoque. */
@@ -497,25 +537,20 @@ public class GerenciadorProducao {
 
     /** Custo de operacao de todas as maquinas para uma quantidade de discos. */
     private double calcularCustoProducao(int quantidade) {
-        double custoPorDisco = 0.0;
-        for (Maquina m : maquinas) {
-            custoPorDisco += m.getCustoOperacao();
-        }
-        return custoPorDisco * quantidade;
+        return linhaAtual.calcularCustoPorDisco() * quantidade;
     }
 
     /** Leva o disco por todas as maquinas, debitando o custo de cada operacao. */
     private boolean passarPelaLinha(Produto disco) {
-        for (Maquina maquina : maquinas) {
-            if (!maquina.estaLigada() || budget + 1e-9 < maquina.getCustoOperacao()) {
-                return false;
-            }
-            budget = Math.max(0.0, budget - maquina.getCustoOperacao());
-            if (!maquina.processar(disco)) {
-                return false;
-            }
+        if (budget + 1e-9 < linhaAtual.calcularCustoPorDisco()) {
+            return false;
         }
-        return true;
+        try {
+            linhaAtual.processar(disco);
+        } finally {
+            budget = Math.max(0, budget - linhaAtual.getCustoUltimoProcessamento());
+        }
+        return disco.getStatus() == StatusProduto.APROVADO;
     }
 
     /** Tritura o disco rejeitado e devolve parte do PVC ao estoque. */
@@ -595,14 +630,10 @@ public class GerenciadorProducao {
     }
 
     private void ligarMaquinas() {
-        for (Maquina m : maquinas) {
-            m.ligar();
-        }
+        linhaAtual.ligar();
     }
 
     private void desligarMaquinas() {
-        for (Maquina m : maquinas) {
-            m.desligar();
-        }
+        linhaAtual.desligar();
     }
 }
