@@ -5,13 +5,17 @@ Projeto de MC322: simulacao de uma fabrica de discos de vinil pelo terminal.
 - Jeorde Antonio - RA 295164
 - Leo Bertoli - RA 282607
 
-## Tarefa 4: Gradle, Javadoc e tratamento de erros
+## Tarefa 5: composicao, construcao e acoplamento
 
-O projeto agora e construido e executado pelo Gradle (com Gradle Wrapper),
-todo o codigo esta documentado com Javadoc e as situacoes de erro viraram
-excecoes de dominio tratadas no menu, sem encerrar o programa e sem deixar a
-planta em estado inconsistente. A funcionalidade das Tarefas 2 e 3 foi
-preservada. As decisoes estao em [justificativa.txt](justificativa.txt).
+Cada maquina agora constroi e controla um motor de acionamento, um sensor de
+alinhamento e uma lista de atuadores de transporte. As maquinas ficam em
+linhas de producao. A auditoria percorre linha, maquinas e suas partes.
+Continuam presentes as estrategias, cenarios, estoque, reciclagem, Gradle e
+tratamento de erros das tarefas anteriores.
+
+O diagrama esta em [docs/estrutura-tarefa5.png](docs/estrutura-tarefa5.png),
+com fontes editaveis em SVG e [draw.io](docs/estrutura-tarefa5.drawio).
+As decisoes estao em [justificativa.txt](justificativa.txt), secao 9.
 
 ## Como construir e executar
 
@@ -59,6 +63,7 @@ gradle/wrapper/         jar e propriedades do Wrapper
 justificativa.txt       decisoes de projeto
 src/main/java/          codigo da aplicacao
 src/test/java/          conferencia automatizada (TestePlanta)
+docs/                  UML em PNG, SVG e draw.io
 ```
 
 ## Tratamento de erros
@@ -83,13 +88,32 @@ Tres niveis, do mais comum ao mais raro:
 
 Pedido -> estrategia -> prensa -> embalagem -> inspecao -> armazem.
 Rejeitados devolvem metade do PVC; apenas aprovados abatem a demanda.
-A auditoria mostra saude das maquinas e risco dos discos.
+A auditoria mostra linhas, maquinas, motor, sensor e todos os atuadores,
+alem do risco dos discos no armazem. Saude estrutural e a menor condicao das
+partes. Sensor desgastado aumenta a chance de falha; uma parte sem condicao
+de operar para a maquina no proximo ciclo.
 Maquinas quebradas ficam paradas ate encerrar a simulacao; reparo nao foi
 implementado. Os dados nao sao salvos entre execucoes.
 
+## Linhas de producao
+
+O menu 7 permite listar as linhas, montar outra linha, selecionar a linha
+para os proximos lotes e consultar sua estrutura. A opcao de montagem usa
+equipamentos novos, com os mesmos custos das etapas originais, e capacidade
+de 30 discos por lote. O nome da linha identifica o setor; todos os formatos
+de disco continuam compativeis. Estoque, budget, pedidos e armazem sao comuns
+a planta, mas cada linha tem suas proprias maquinas e desgaste.
+
+As colecoes retornadas sao copias imutaveis. Maquina nao retorna nenhuma de
+suas partes: o restante do sistema usa ligar, desligar, processar e auditoria.
+Uma linha vazia esta em montagem e nao pode produzir. Retirar uma maquina
+desligada de uma linha nao destroi suas partes; ela pode ser reinstalada.
+A mesma maquina nao pode estar instalada em duas linhas ao mesmo tempo.
+Cada parte sofre seu proprio desgaste sorteado, sem uma ordem fixa de quebra.
+
 ## Entrega
 
-Criar a release `tarefa4-295164-282607` com o codigo completo e
+Criar a release `tarefa5-295164-282607` com o codigo completo, o diagrama UML e
 `justificativa.txt`. Depois, enviar o link direto da release no formulario
 da disciplina. As pastas `build/`, `.gradle/` e arquivos `.class` nao precisam
 ser enviados.

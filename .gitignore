@@ -1,3 +1,5 @@
 bin/
 *.class
 .vscode/
+build/
+.gradle/

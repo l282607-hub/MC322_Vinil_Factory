@@ -1,9 +1,11 @@
-GROOVEPRESS VINYL WORKS - TAREFA 4
+GROOVEPRESS VINYL WORKS - TAREFA 5
 Jeorde Antonio - RA 295164
 Leo Bertoli - RA 282607
 
 Este documento acumula as decisoes das tarefas anteriores (secoes 1 a 7) e
-acrescenta as da Tarefa 4: Gradle, Javadoc e tratamento de erros (secao 8).
+acrescenta Gradle, Javadoc e tratamento de erros (secao 8), e composicao,
+construcao e acoplamento (secao 9). As secoes 1 a 8 registram a evolucao;
+a secao 9 descreve a estrutura atual e substitui as decisoes refatoradas.
 
 1. TEMA E CONTINUIDADE
 
@@ -266,3 +268,96 @@ que nada mudou.
   como [AVISO], porque descrevem o andamento da producao e nao um erro.
 - A Main perdeu os metodos de leitura, que foram para LeitorConsole. Menus,
   textos e regras de fabricacao continuam os mesmos.
+
+9. TAREFA 5: COMPOSICAO E LINHAS DE PRODUCAO
+
+9.1 Todo e partes
+
+Maquina e o Todo. Prensa, embaladora e estacao precisam movimentar o disco e
+conferir seu posicionamento, por isso compartilham tres tipos de componente:
+- MotorAcionamento: estado ligado/desligado e saude do acionamento.
+- SensorAlinhamento: calibracao e risco de leitura do posicionamento.
+- AtuadorTransporte: integridade de cada mecanismo de entrada e saida.
+
+O construtor de Maquina valida as configuracoes antes de criar as partes.
+Ele instancia um motor, um sensor e todos os atuadores com new. Sao campos
+privados e finais. Nenhum construtor recebe partes e nenhum getter as devolve.
+As partes sao classes de acesso de pacote; nao fazem parte da API publica.
+Sem referencias externas a essas instancias, elas deixam de ser alcancaveis
+junto com a maquina e podem ser recolhidas pelo coletor de lixo do Java.
+Nao ha destruicao manual nem compartilhamento de partes entre maquinas.
+
+As relacoes motor e sensor sao 1:1. Atuadores sao 1:N, com quantidade positiva
+configuravel no construtor protegido; os equipamentos atuais usam dois.
+A lista preserva a ordem dos mecanismos. Nao usamos Set porque cada atuador
+tem uma posicao propria e nao ha necessidade de eliminar elementos iguais.
+
+9.2 Comportamento das partes
+
+A saude unica antiga foi substituida pela menor condicao entre as partes,
+pois uma parte indispensavel quebrada impede o conjunto de funcionar.
+Cada uso sorteia separadamente o desgaste do motor, do sensor e de cada
+atuador, respeitando o mesmo limite do cenario. Isso evita que uma parte
+sempre quebre primeiro apenas por receber um percentual maior do mesmo
+sorteio. Qualquer tipo de parte pode ser o motivo da parada da maquina.
+
+A chance base continua dependendo do cenario e da saude estrutural. Soma-se
+o risco de desalinhamento: (100 - calibracao) / 100 * 0,05. Esse risco nao
+transforma toda leitura incorreta em quebra, mas aumenta a chance de defeito
+na prensa/embalagem ou erro de inspecao, conforme a maquina.
+Ao zerar qualquer parte indispensavel, a maquina fica QUEBRADA, desliga seu
+motor e bloqueia o proximo disco. O ciclo ja iniciado termina, como antes.
+O limiar configuravel da maquina continua existindo; partes tambem avisam
+quando sua condicao cai abaixo de 30. Reparo continua fora do escopo.
+
+9.3 Agrupamento e delegacao
+
+LinhaDeProducao agrega maquinas recebidas prontas. A relacao e agregacao,
+pois remover uma maquina desligada nao a destroi: a mesma instancia, com suas
+partes e seu desgaste, pode ser instalada em outra linha. A maquina guarda
+internamente em qual linha esta instalada, e recusa uma segunda instalacao
+antes de ser retirada da primeira. Sem instalacao, essa referencia e nula:
+a multiplicidade e 0..1 linha por maquina. Uma linha pode
+estar vazia durante a montagem (0..*); para operar precisa de 1..* maquinas.
+
+A linha calcula custo e capacidade, liga e desliga os equipamentos e conduz
+o disco na ordem de instalacao. GerenciadorProducao coordena pedidos, estoque
+e budget, mas nao percorre mais as maquinas para fabricar. O custo registrado
+pela linha inclui apenas etapas iniciadas e e debitado mesmo se uma falha
+inesperada interromper o processamento. As validacoes de dominio continuam
+acontecendo antes de iniciar o lote.
+
+O gerenciador mantem linhas e uma linha selecionada. O menu permite montar
+linhas adicionais e trocar a selecionada, atualizando as estimativas dos
+pedidos. Elas compartilham os recursos da planta, mas nao o desgaste.
+Nao e permitido instalar a mesma maquina em duas linhas, mesmo usando as
+referencias das linhas fora do gerenciador. O construtor da linha valida a
+lista inteira antes de vincular maquinas, para nao prende-las caso a montagem
+seja rejeitada. A lista recebida pelo construtor da linha e copiada;
+getMaquinas e getLinhas devolvem snapshots imutaveis. Sao copias da estrutura,
+nao clones das maquinas, coerentemente com a agregacao.
+
+9.4 Lei de Demeter e auditoria
+
+Main chama operacoes do gerenciador. O gerenciador pede a linha que processe
+ou audite. A linha pede a cada maquina, e cada maquina consulta suas partes.
+Nao existe getMotor, getSensor nem getAtuadores; getSaude repassa apenas um
+numero calculado. Cada classe conhece somente o nivel com que trabalha.
+
+Linha, Maquina e as tres partes implementam Auditavel porque todas possuem
+condicao operacional relevante. O relatorio usa indentacao para representar
+linha > maquina > motor, sensor e todos os atuadores. Os alertas tambem
+sobem pela mesma estrutura. Produtos continuam auditaveis no mesmo relatorio.
+
+9.5 UML e verificacao
+
+docs/estrutura-tarefa5.png mostra agregacao com losango vazio, composicao com
+losango cheio, cardinalidades, heranca, atributos e metodos principais.
+As fontes SVG e draw.io acompanham a imagem. A cardinalidade 0..* considera
+linhas em montagem; uma linha vazia nao pode produzir, conforme a secao 9.3.
+
+Os testes anteriores foram mantidos e complementados com construcao exclusiva
+das partes, ausencia de vazamento de referencias, desgaste, protecao das
+colecoes, troca de linha, reinstalacao de maquina e auditoria em cascata.
+Um teste de mensagem foi ajustado para respeitar a configuracao numerica
+local da JVM, sem depender de ponto ou virgula como separador decimal.
