@@ -361,3 +361,38 @@ das partes, ausencia de vazamento de referencias, desgaste, protecao das
 colecoes, troca de linha, reinstalacao de maquina e auditoria em cascata.
 Um teste de mensagem foi ajustado para respeitar a configuracao numerica
 local da JVM, sem depender de ponto ou virgula como separador decimal.
+
+
+10. TAREFA 6: PERSISTENCIA, PACOTES E JUNIT
+
+As secoes anteriores registram as decisoes de cada tarefa. Na Tarefa 6, os
+dados passaram a ser salvos e recuperados em XML e a tarefa test foi ativada
+com JUnit 5. Portanto, as descricoes antigas de dados apenas em memoria,
+pacote padrao e test desabilitado descrevem o estado anterior do projeto.
+
+O pacote br.unicamp.ic.mc322 separa model, service, strategy, persistence,
+exception e console. As partes de Maquina continuam com acesso de pacote,
+campos privados e construcao interna. A persistencia recebe somente valores
+das partes e nao compartilha suas referencias. A recuperacao de produtos
+usa construtores que preservam IDs sem incrementar o contador durante a
+validacao, inclusive quando uma falha e encontrada no fim do documento.
+
+PersistenciaPlanta concentra DOM, validacao estrutural e acesso a arquivos.
+GerenciadorProducao monta a planta recuperada e valida seus relacionamentos.
+As entidades validam seus proprios valores; nenhuma delas le ou escreve XML.
+Main substitui sua referencia de fabrica somente depois da leitura completa.
+Salvar usa um temporario seguido de substituicao atomica do arquivo anterior.
+PersistenciaException integra os erros de arquivo ao tratamento ja existente.
+
+O menu ganhou as opcoes 8 e 9, mantendo as anteriores. O inicio continua
+montando a planta padrao, e carregar e uma operacao explicita. Nao ha
+salvamento automatico ao sair. Budget, cenario, estrategia, linha ativa,
+armazem e contadores tambem foram incluidos para permitir a continuidade
+sem perder recursos ou repetir IDs e lotes.
+
+TestePlanta preserva os grupos de verificacao anteriores, convertidos para
+JUnit 5. PersistenciaPlantaTest acrescenta recuperacao, continuidade e casos
+invalidos com arquivos temporarios. MenuPersistenciaTest confere a integracao
+sem teclado. A tarefa verificar agora depende de test, mantendo o comando
+anterior sem duplicar a execucao. O Wrapper 8.14.3 foi mantido e os fontes
+sao compilados para Java 17. Escopo, limites e testes estao no README.

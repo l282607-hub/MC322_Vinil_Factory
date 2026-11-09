@@ -6,20 +6,21 @@ plugins {
 }
 
 group = 'br.unicamp.mc322'
-version = '5.0'
+version = '6.0'
 
-// Projeto sem dependencias externas: usa apenas a biblioteca padrao do Java.
+// A aplicacao usa a biblioteca padrao; JUnit e usado somente nos testes.
 repositories {
     mavenCentral()
 }
 
 application {
-    // Classe com o metodo main (pacote padrao).
-    mainClass = 'Main'
+    // Ponto de entrada do console.
+    mainClass = 'br.unicamp.ic.mc322.Main'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+    options.release = 17
     options.compilerArgs << '-Xlint:all'
 }
 
@@ -37,19 +38,19 @@ tasks.named('javadoc') {
     options.addBooleanOption('Xdoclint:all', true)
 }
 
-// Os testes sao um programa Java simples (src/test/java/TestePlanta.java), sem
-// JUnit; rodam na tarefa 'verificar', que faz parte de 'check' e de 'build'.
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.14.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
 tasks.named('test') {
-    enabled = false
+    useJUnitPlatform()
 }
 
-tasks.register('verificar', JavaExec) {
+// Mantem o comando das tarefas anteriores, agora usando a suite JUnit.
+tasks.register('verificar') {
     group = 'verification'
-    description = 'Executa a conferencia automatizada da planta (TestePlanta).'
-    classpath = sourceSets.test.runtimeClasspath
-    mainClass = 'TestePlanta'
-}
-
-tasks.named('check') {
-    dependsOn tasks.named('verificar')
+    description = 'Executa os testes automatizados da planta com JUnit 5.'
+    dependsOn tasks.named('test')
 }

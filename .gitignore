@@ -3,3 +3,5 @@ bin/
 .vscode/
 build/
 .gradle/
+fabrica.xml
+.planta-*.xml
