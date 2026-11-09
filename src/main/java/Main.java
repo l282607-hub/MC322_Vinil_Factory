@@ -68,9 +68,10 @@ public class Main {
                 System.out.println("3 - Consultar estoques");
                 System.out.println("4 - Comprar PVC");
                 System.out.println("5 - Trocar estrategia");
-                System.out.println("6 - Auditoria");
+                System.out.println("6 - Auditoria estrutural");
+                System.out.println("7 - Linhas de producao");
                 System.out.println("0 - Sair");
-                int opcao = leitor.lerOpcao(0, 6);
+                int opcao = leitor.lerOpcao(0, 7);
                 switch (opcao) {
                     case 1: menuDemandas(leitor, fabrica); break;
                     case 2: menuProducao(leitor, fabrica); break;
@@ -78,6 +79,7 @@ public class Main {
                     case 4: comprarPvc(leitor, fabrica); break;
                     case 5: menuEstrategias(leitor, fabrica); break;
                     case 6: menuAuditoria(leitor, fabrica); break;
+                    case 7: menuLinhas(leitor, fabrica); break;
                     default: executando = false;
                 }
             }
@@ -104,6 +106,7 @@ public class Main {
         System.out.println(" GROOVEPRESS | " + titulo);
         System.out.println(" Cenario: " + fabrica.getCenario().getDescricao());
         System.out.println(" Estrategia: " + fabrica.getNomeEstrategia());
+        System.out.println(" Linha: " + fabrica.getNomeLinhaAtual());
         fabrica.exibirBudget();
         System.out.println("============================================================");
     }
@@ -207,6 +210,38 @@ public class Main {
         }
         System.out.println("0 - Voltar");
         return leitor.lerOpcao(0, TIPOS.length);
+    }
+
+    private static void menuLinhas(LeitorConsole leitor, GerenciadorProducao fabrica) {
+        while (true) {
+            cabecalho(fabrica, "LINHAS DE PRODUCAO");
+            fabrica.exibirLinhas();
+            System.out.println("1 - Selecionar linha");
+            System.out.println("2 - Montar linha de compactos");
+            System.out.println("3 - Ver estrutura da linha selecionada");
+            System.out.println("0 - Voltar");
+            int opcao = leitor.lerOpcao(0, 3);
+            if (opcao <= 0) { return; }
+            if (opcao == 1) {
+                System.out.println("Numero da linha (0 para voltar):");
+                final int numero = leitor.lerOpcao(0, fabrica.getLinhas().size());
+                if (numero > 0) {
+                    executarComTratamento(leitor, () -> fabrica.selecionarLinha(numero));
+                }
+            } else if (opcao == 2) {
+                executarComTratamento(leitor, () -> {
+                    int numero = fabrica.getLinhas().size() + 1;
+                    LinhaDeProducao linha = new LinhaDeProducao("Compactos " + numero);
+                    linha.adicionarMaquina(new PrensaHidraulica("Prensa de compactos " + numero, 30, 0.20, 4));
+                    linha.adicionarMaquina(new EmbaladoraCapas("Capas de compactos " + numero, 40, 0.15, 1.5));
+                    linha.adicionarMaquina(new EstacaoInspecao("Inspecao de compactos " + numero, 30, 0.05, 2.5));
+                    fabrica.adicionarLinha(linha);
+                    System.out.println("Linha montada. Selecione-a para os proximos lotes.");
+                });
+            } else {
+                fabrica.exibirMaquinas();
+            }
+        }
     }
 
     // ---- Tratamento de erros ----------------------------------------------

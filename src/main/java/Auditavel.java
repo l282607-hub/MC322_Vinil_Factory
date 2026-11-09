@@ -1,9 +1,9 @@
 /**
  * Contrato comum para diagnosticar equipamentos e discos.
  *
- * <p>{@link Maquina} e {@link Produto} pertencem a hierarquias diferentes, mas
- * ambos sao auditaveis. Isso permite que o gerenciador percorra uma unica
- * colecao de {@code Auditavel} e trate os dois tipos de forma polimorfica.</p>
+ * <p>{@link LinhaDeProducao} e {@link Produto} pertencem a hierarquias diferentes,
+ * mas sao auditaveis. A linha delega o diagnostico para cada {@link Maquina},
+ * que o propaga a suas partes. O gerenciador usa o mesmo contrato no relatorio.</p>
  *
  * @author Jeorde Antonio
  * @author Leo Bertoli

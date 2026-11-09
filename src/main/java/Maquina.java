@@ -1,4 +1,6 @@
 import java.util.Random;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Classe abstrata para os equipamentos da linha de producao. Cada maquina
@@ -11,9 +13,8 @@ import java.util.Random;
  *   <li>Toda maquina comeca com saude 100 e perde um desgaste sorteado a cada
  *       uso; com saude zero fica {@link StatusMaquina#QUEBRADA} e nao opera
  *       mais (o reparo nao esta implementado).</li>
- *   <li>A chance efetiva de falha e
- *       {@code min(1, chanceBase * fatorCenario * 100 / saude)}: quanto mais
- *       desgastada, mais falha.</li>
+ *   <li>A saude estrutural e a menor condicao entre motor, sensor e atuadores.
+ *       A chance de falha cresce com desgaste e desalinhamento do sensor.</li>
  *   <li>Uma maquina desligada ou quebrada nao processa discos.</li>
  * </ul>
  *
@@ -26,7 +27,10 @@ public abstract class Maquina implements Auditavel {
 
     private String nome;
     private StatusMaquina status;
-    private double saude = 100.0;
+    private LinhaDeProducao linhaInstalada;
+    private final MotorAcionamento motor;
+    private final SensorAlinhamento sensor;
+    private final List<AtuadorTransporte> atuadores;
     private double limiarManutencao = 30.0;
     private int historicoFalhas;
     private Cenario cenario = Cenario.IDEAL;
@@ -44,16 +48,37 @@ public abstract class Maquina implements Auditavel {
      * @throws IllegalArgumentException se algum parametro numerico for invalido
      */
     protected Maquina(String nome, int capacidadeMaxima, double probabilidadeFalha, double custoOperacao) {
-        this.nome = nome;
-        if (capacidadeMaxima <= 0 || !Double.isFinite(probabilidadeFalha)
+        this(nome, capacidadeMaxima, probabilidadeFalha, custoOperacao, 2);
+    }
+
+    /**
+     * Constroi as partes exclusivas a partir de configuracoes basicas.
+     * @param nome nome da maquina
+     * @param capacidadeMaxima discos por lote, positivo
+     * @param probabilidadeFalha chance base entre 0 e 1
+     * @param custoOperacao custo positivo por disco
+     * @param quantidadeAtuadores quantidade positiva de mecanismos de transporte
+     * @throws IllegalArgumentException se alguma configuracao for invalida
+     */
+    protected Maquina(String nome, int capacidadeMaxima, double probabilidadeFalha,
+            double custoOperacao, int quantidadeAtuadores) {
+        if (nome == null || nome.trim().isEmpty() || capacidadeMaxima <= 0 || !Double.isFinite(probabilidadeFalha)
                 || probabilidadeFalha < 0 || probabilidadeFalha > 1
-                || !Double.isFinite(custoOperacao) || custoOperacao <= 0) {
+                || !Double.isFinite(custoOperacao) || custoOperacao <= 0 || quantidadeAtuadores <= 0) {
             throw new IllegalArgumentException("Parametros invalidos da maquina.");
         }
         this.status = StatusMaquina.DESLIGADA;
+        this.nome = nome;
         this.capacidadeMaxima = capacidadeMaxima;
         this.probabilidadeFalha = probabilidadeFalha;
         this.custoOperacao = custoOperacao;
+        this.motor = new MotorAcionamento();
+        this.sensor = new SensorAlinhamento();
+        this.atuadores = new ArrayList<>();
+        // Um mecanismo recebe o disco e o outro o encaminha para a saida.
+        for (int numero = 1; numero <= quantidadeAtuadores; numero++) {
+            atuadores.add(new AtuadorTransporte(numero));
+        }
     }
 
     // ---- Metodos abstratos -------------------------------------------------
@@ -78,13 +103,15 @@ public abstract class Maquina implements Auditavel {
 
     /** Liga a maquina. Uma maquina quebrada permanece quebrada. */
     public void ligar() {
-        if (status != StatusMaquina.QUEBRADA) {
+        if (status != StatusMaquina.QUEBRADA && partesOperantes()) {
+            motor.ligar();
             status = StatusMaquina.LIGADA;
         }
     }
 
     /** Desliga a maquina. Uma maquina quebrada permanece quebrada. */
     public void desligar() {
+        motor.desligar();
         if (status != StatusMaquina.QUEBRADA) {
             status = StatusMaquina.DESLIGADA;
         }
@@ -96,7 +123,7 @@ public abstract class Maquina implements Auditavel {
      * @return {@code true} se o status e {@link StatusMaquina#LIGADA}
      */
     public boolean estaLigada() {
-        return status == StatusMaquina.LIGADA;
+        return status == StatusMaquina.LIGADA && motor.estaLigado() && partesOperantes();
     }
 
     /**
@@ -117,16 +144,35 @@ public abstract class Maquina implements Auditavel {
         return capacidadeMaxima;
     }
 
+    // A linha controla a instalacao; essa referencia nao expoe partes da maquina.
+    boolean estaInstalada() { return linhaInstalada != null; }
+
+    void vincularLinha(LinhaDeProducao linha) {
+        if (linha == null || estaInstalada() || estaLigada()) {
+            throw new IllegalArgumentException("A maquina deve estar desligada e fora de outra linha.");
+        }
+        linhaInstalada = linha;
+    }
+
+    void desvincularLinha(LinhaDeProducao linha) {
+        if (linhaInstalada != linha || estaLigada()) {
+            throw new MaquinaIndisponivelException("A maquina so pode ser retirada de sua linha e desligada.");
+        }
+        linhaInstalada = null;
+    }
+
     /**
      * Calcula a chance efetiva de falha, considerando cenario e desgaste.
      *
-     * @return probabilidade entre 0 e 1 (1 se a saude e zero)
+     * @return probabilidade entre 0 e 1, incluindo o risco de desalinhamento
      */
     public double getProbabilidadeFalha() {
+        double saude = getSaude();
         if (saude == 0) {
             return 1.0;
         }
-        return Math.min(1.0, probabilidadeFalha * cenario.getFatorFalha() * 100.0 / saude);
+        return Math.min(1.0, probabilidadeFalha * cenario.getFatorFalha() * 100.0 / saude
+                + sensor.calcularRiscoDesalinhamento());
     }
 
     /**
@@ -197,18 +243,38 @@ public abstract class Maquina implements Auditavel {
      * quebra e o proximo ciclo fica bloqueado.
      */
     protected void registrarUso() {
-        saude = Math.max(0.0, saude - sortear() * cenario.getDesgasteMaximo());
-        if (saude == 0.0) {
+        double desgasteMaximo = cenario.getDesgasteMaximo();
+        motor.desgastar(sortear() * desgasteMaximo);
+        sensor.desgastar(sortear() * desgasteMaximo);
+        for (AtuadorTransporte atuador : atuadores) {
+            atuador.desgastar(sortear() * desgasteMaximo);
+        }
+        if (!partesOperantes()) {
             status = StatusMaquina.QUEBRADA;
+            motor.desligar();
         }
     }
 
     /**
      * Retorna a saude atual.
      *
-     * @return saude entre 0 e 100
+     * @return menor saude entre as partes, entre 0 e 100; nenhuma referencia interna
      */
-    public double getSaude() { return saude; }
+    public double getSaude() {
+        double saude = Math.min(motor.getSaude(), sensor.getCalibracao());
+        for (AtuadorTransporte atuador : atuadores) {
+            saude = Math.min(saude, atuador.getIntegridade());
+        }
+        return saude;
+    }
+
+    private boolean partesOperantes() {
+        if (motor.getSaude() == 0 || !sensor.estaOperante()) { return false; }
+        for (AtuadorTransporte atuador : atuadores) {
+            if (!atuador.estaOperante()) { return false; }
+        }
+        return true;
+    }
 
     /**
      * Retorna o estado operacional.
@@ -237,7 +303,10 @@ public abstract class Maquina implements Auditavel {
      */
     @Override
     public boolean precisaManutencao() {
-        return saude < limiarManutencao;
+        boolean alerta = getSaude() < limiarManutencao || motor.precisaManutencao()
+                || sensor.precisaManutencao();
+        for (AtuadorTransporte atuador : atuadores) { alerta |= atuador.precisaManutencao(); }
+        return alerta;
     }
 
     /**
@@ -247,9 +316,16 @@ public abstract class Maquina implements Auditavel {
      */
     @Override
     public String gerarRelatorioDiagnostico() {
-        return String.format("%s | saude %.1f/100 | %s | falha %.1f%% | erros %d | %s",
-                nome, saude, status, getProbabilidadeFalha() * 100, historicoFalhas,
-                precisaManutencao() ? "MANUTENCAO NECESSARIA" : "operacional");
+        StringBuilder texto = new StringBuilder(String.format(
+                "%s | saude %.1f/100 | %s | falha %.1f%% | erros %d | %s",
+                nome, getSaude(), status, getProbabilidadeFalha() * 100, historicoFalhas,
+                precisaManutencao() ? "MANUTENCAO NECESSARIA" : "operacional"));
+        texto.append("\n  ").append(motor.gerarRelatorioDiagnostico());
+        texto.append("\n  ").append(sensor.gerarRelatorioDiagnostico());
+        for (AtuadorTransporte atuador : atuadores) {
+            texto.append("\n  ").append(atuador.gerarRelatorioDiagnostico());
+        }
+        return texto.toString();
     }
 
     /**
